@@ -20,7 +20,6 @@
 
   <p>
     <a href="https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/EngOmarAbd-Elaziz/ERONIX?style=for-the-badge&color=3157d5"></a>
-    <a href="https://github.com/EngOmarAbd-Elaziz/ERONIX/actions/workflows/package.yml"><img alt="Release builds" src="https://img.shields.io/github/actions/workflow/status/EngOmarAbd-Elaziz/ERONIX/package.yml?branch=main&style=for-the-badge&label=release%20builds"></a>
     <img alt="Android 14+" src="https://img.shields.io/badge/Android-14%2B-3ddc84?style=for-the-badge&logo=android&logoColor=white">
     <img alt="Java 25" src="https://img.shields.io/badge/Java-25-ec2025?style=for-the-badge&logo=openjdk&logoColor=white">
   </p>
