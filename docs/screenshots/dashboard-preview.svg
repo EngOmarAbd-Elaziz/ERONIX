@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1060" viewBox="0 0 1600 1060" role="img" aria-labelledby="title description">
+  <title id="title">ERONIX emergency department dashboard preview</title>
+  <desc id="description">Illustrative desktop dashboard showing simulation status, patient statistics, waiting room, medical team, treatment rooms, event timeline, and configuration.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f8faff"/>
+      <stop offset="1" stop-color="#eaf0fb"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#416af0"/>
+      <stop offset="1" stop-color="#2447be"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="7" stdDeviation="12" flood-color="#283d67" flood-opacity=".08"/>
+    </filter>
+    <style>
+      .sans { font-family: Inter, "Segoe UI", Arial, sans-serif; }
+      .ink { fill: #17243a; }
+      .muted { fill: #65768d; }
+      .tiny { font-size: 13px; }
+      .label { font-size: 15px; font-weight: 600; }
+      .cardtitle { font-size: 19px; font-weight: 700; }
+      .card { fill: #fff; stroke: #dce4ef; stroke-width: 1.4; }
+    </style>
+  </defs>
+  <rect width="1600" height="1060" rx="26" fill="url(#background)"/>
+
+  <rect x="1" y="1" width="1598" height="77" rx="25" fill="#fff"/>
+  <path d="M1 53V77h1598V53" fill="#fff"/>
+  <path d="M1 77h1598" stroke="#dce4ef"/>
+  <rect x="34" y="16" width="44" height="44" rx="13" fill="url(#brand)"/>
+  <path d="M52 24h9v9h9v9h-9v9h-9v-9h-9v-9h9z" fill="#fff"/>
+  <text x="91" y="37" class="sans ink" font-size="21" font-weight="800" letter-spacing=".4">ERONIX</text>
+  <text x="91" y="56" class="sans muted tiny">Emergency Room Simulation</text>
+  <rect x="1284" y="23" width="113" height="31" rx="15.5" fill="#e5f5e9"/>
+  <circle cx="1303" cy="38.5" r="5" fill="#247044"/>
+  <text x="1315" y="43" class="sans" font-size="13" font-weight="700" fill="#247044">READY</text>
+  <rect x="1410" y="23" width="77" height="31" rx="9" fill="#f3f6fb"/>
+  <text x="1426" y="43" class="sans ink tiny" font-weight="600">◐ Theme</text>
+  <rect x="1497" y="23" width="72" height="31" rx="9" fill="#f3f6fb"/>
+  <text x="1512" y="43" class="sans ink tiny" font-weight="600">⛶ View</text>
+
+  <text x="44" y="130" class="sans ink" font-size="30" font-weight="800">Emergency department</text>
+  <text x="44" y="159" class="sans muted" font-size="16">A live view of patient flow, staff, and shared treatment resources.</text>
+  <rect x="1363" y="111" width="187" height="41" rx="11" fill="url(#brand)"/>
+  <text x="1391" y="137" class="sans" font-size="14" font-weight="700" fill="#fff">▶  Start simulation</text>
+
+  <g filter="url(#shadow)">
+    <rect x="42" y="185" width="1516" height="117" rx="17" class="card"/>
+  </g>
+  <text x="66" y="219" class="sans ink cardtitle">Simulation setup</text>
+  <text x="66" y="242" class="sans muted tiny">Adjust the department before starting</text>
+  <g class="sans">
+    <text x="322" y="215" class="muted tiny">WAITING ROOM</text>
+    <rect x="322" y="227" width="142" height="48" rx="9" fill="#f8faff" stroke="#dce4ef"/>
+    <text x="338" y="258" class="ink label">8 seats</text>
+    <text x="491" y="215" class="muted tiny">DOCTORS</text>
+    <rect x="491" y="227" width="142" height="48" rx="9" fill="#f8faff" stroke="#dce4ef"/>
+    <text x="507" y="258" class="ink label">3 doctors</text>
+    <text x="660" y="215" class="muted tiny">PATIENTS</text>
+    <rect x="660" y="227" width="142" height="48" rx="9" fill="#f8faff" stroke="#dce4ef"/>
+    <text x="676" y="258" class="ink label">18 patients</text>
+    <text x="829" y="215" class="muted tiny">TREATMENT ROOMS</text>
+    <rect x="829" y="227" width="142" height="48" rx="9" fill="#f8faff" stroke="#dce4ef"/>
+    <text x="845" y="258" class="ink label">2 rooms</text>
+    <text x="998" y="215" class="muted tiny">ARRIVAL (SECONDS)</text>
+    <rect x="998" y="227" width="192" height="48" rx="9" fill="#f8faff" stroke="#dce4ef"/>
+    <text x="1014" y="258" class="ink label">1.0  –  3.0</text>
+    <text x="1217" y="215" class="muted tiny">TREATMENT (SECONDS)</text>
+    <rect x="1217" y="227" width="192" height="48" rx="9" fill="#f8faff" stroke="#dce4ef"/>
+    <text x="1233" y="258" class="ink label">1.0  –  5.0</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="42" y="322" width="362" height="112" rx="16" class="card"/>
+    <rect x="420" y="322" width="362" height="112" rx="16" class="card"/>
+    <rect x="798" y="322" width="362" height="112" rx="16" class="card"/>
+    <rect x="1176" y="322" width="382" height="112" rx="16" class="card"/>
+  </g>
+  <g class="sans">
+    <text x="66" y="357" class="muted label">TOTAL PATIENTS</text><text x="66" y="404" class="ink" font-size="34" font-weight="800">18</text>
+    <text x="444" y="357" class="muted label">WAITING</text><text x="444" y="404" class="ink" font-size="34" font-weight="800">6</text>
+    <text x="822" y="357" class="muted label">IN TREATMENT</text><text x="822" y="404" class="ink" font-size="34" font-weight="800">2</text>
+    <text x="1200" y="357" class="muted label">COMPLETED</text><text x="1200" y="404" class="ink" font-size="34" font-weight="800">10</text>
+    <rect x="330" y="348" width="42" height="42" rx="12" fill="#e9eeff"/><text x="344" y="376" font-size="19" fill="#3157d5">♥</text>
+    <rect x="708" y="348" width="42" height="42" rx="12" fill="#fff1d9"/><text x="722" y="376" font-size="19" fill="#9a5a08">◷</text>
+    <rect x="1086" y="348" width="42" height="42" rx="12" fill="#e2f5f1"/><text x="1100" y="376" font-size="19" fill="#087f78">✚</text>
+    <rect x="1484" y="348" width="42" height="42" rx="12" fill="#e5f5e9"/><text x="1498" y="376" font-size="19" fill="#247044">✓</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="42" y="454" width="590" height="237" rx="17" class="card"/>
+    <rect x="650" y="454" width="908" height="237" rx="17" class="card"/>
+    <rect x="42" y="711" width="590" height="268" rx="17" class="card"/>
+    <rect x="650" y="711" width="908" height="268" rx="17" class="card"/>
+  </g>
+
+  <g class="sans">
+    <text x="68" y="491" class="ink cardtitle">Waiting room</text>
+    <text x="68" y="515" class="muted tiny">Bounded capacity · patients wait for an available doctor</text>
+    <text x="68" y="560" class="muted tiny">OCCUPANCY</text>
+    <text x="68" y="589" class="ink" font-size="24" font-weight="800">6 <tspan class="muted" font-size="17" font-weight="500">/ 8 seats</tspan></text>
+    <rect x="68" y="605" width="536" height="8" rx="4" fill="#e9eeff"/>
+    <rect x="68" y="605" width="402" height="8" rx="4" fill="#3157d5"/>
+    <text x="68" y="650" class="muted tiny">WAITING</text>
+    <g fill="#e9eeff" stroke="#3157d5" stroke-width="2">
+      <circle cx="146" cy="649" r="14"/><circle cx="188" cy="649" r="14"/><circle cx="230" cy="649" r="14"/>
+      <circle cx="272" cy="649" r="14"/><circle cx="314" cy="649" r="14"/><circle cx="356" cy="649" r="14"/>
+      <circle cx="398" cy="649" r="14" fill="#f8faff" stroke="#dce4ef"/><circle cx="440" cy="649" r="14" fill="#f8faff" stroke="#dce4ef"/>
+    </g>
+    <text x="68" y="671" class="muted tiny">2 patients outside the room</text>
+
+    <text x="678" y="491" class="ink cardtitle">Medical team</text>
+    <text x="678" y="515" class="muted tiny">Doctor availability and current patient assignments</text>
+    <rect x="678" y="535" width="852" height="56" rx="11" fill="#f8faff"/>
+    <circle cx="707" cy="563" r="16" fill="#e9eeff"/><text x="701" y="569" fill="#3157d5" font-size="16">+</text>
+    <text x="738" y="560" class="ink label">Doctor 1</text><text x="738" y="580" class="muted tiny">Treating Patient 014</text>
+    <rect x="1386" y="550" width="121" height="26" rx="13" fill="#fff1d9"/><text x="1411" y="568" fill="#9a5a08" font-size="12" font-weight="700">IN TREATMENT</text>
+    <rect x="678" y="601" width="852" height="56" rx="11" fill="#f8faff"/>
+    <circle cx="707" cy="629" r="16" fill="#e2f5f1"/><text x="701" y="635" fill="#087f78" font-size="16">+</text>
+    <text x="738" y="626" class="ink label">Doctor 2</text><text x="738" y="646" class="muted tiny">Available for next patient</text>
+    <rect x="1403" y="616" width="104" height="26" rx="13" fill="#e5f5e9"/><text x="1426" y="634" fill="#247044" font-size="12" font-weight="700">AVAILABLE</text>
+    <rect x="678" y="667" width="852" height="1" fill="#dce4ef"/>
+    <text x="678" y="683" class="muted tiny">3 doctors · 1 available · 2 busy</text>
+
+    <text x="68" y="749" class="ink cardtitle">Treatment rooms</text>
+    <text x="68" y="773" class="muted tiny">Shared resources coordinated by a counting semaphore</text>
+    <rect x="68" y="795" width="252" height="117" rx="12" fill="#f8faff" stroke="#dce4ef"/>
+    <rect x="337" y="795" width="267" height="117" rx="12" fill="#f8faff" stroke="#dce4ef"/>
+    <rect x="86" y="813" width="34" height="34" rx="10" fill="#e2f5f1"/><text x="96" y="837" fill="#087f78" font-size="19">✚</text>
+    <text x="132" y="828" class="ink label">Room 1</text><text x="132" y="849" class="muted tiny">Patient 014</text>
+    <rect x="86" y="869" width="211" height="6" rx="3" fill="#e4eaf3"/><rect x="86" y="869" width="119" height="6" rx="3" fill="#087f78"/>
+    <text x="355" y="829" class="ink label">Room 2</text><text x="355" y="850" class="muted tiny">Ready for next patient</text>
+    <rect x="355" y="869" width="211" height="6" rx="3" fill="#e4eaf3"/>
+    <rect x="68" y="927" width="10" height="10" rx="5" fill="#087f78"/><text x="85" y="937" class="muted tiny">In use</text>
+    <rect x="153" y="927" width="10" height="10" rx="5" fill="#dce4ef"/><text x="170" y="937" class="muted tiny">Available</text>
+
+    <text x="678" y="749" class="ink cardtitle">Event timeline</text>
+    <text x="678" y="773" class="muted tiny">A chronological record from the live simulation engine</text>
+    <circle cx="690" cy="811" r="5" fill="#3157d5"/>
+    <text x="708" y="816" class="muted tiny">00:42:18.102</text><text x="854" y="816" class="ink tiny">Patient 018 arrived and joined the waiting room.</text>
+    <path d="M690 819v32" stroke="#dce4ef" stroke-width="2"/>
+    <circle cx="690" cy="858" r="5" fill="#087f78"/>
+    <text x="708" y="863" class="muted tiny">00:42:16.547</text><text x="854" y="863" class="ink tiny">Doctor 2 began treatment in Room 1.</text>
+    <path d="M690 866v32" stroke="#dce4ef" stroke-width="2"/>
+    <circle cx="690" cy="905" r="5" fill="#247044"/>
+    <text x="708" y="910" class="muted tiny">00:42:13.003</text><text x="854" y="910" class="ink tiny">Patient 012 completed treatment and left the department.</text>
+    <path d="M690 913v32" stroke="#dce4ef" stroke-width="2"/>
+    <circle cx="690" cy="952" r="5" fill="#9a5a08"/>
+    <text x="708" y="957" class="muted tiny">00:42:11.226</text><text x="854" y="957" class="ink tiny">Waiting room full; Patient 017 is waiting outside.</text>
+  </g>
+
+  <path d="M42 1008h1516" stroke="#dce4ef"/>
+  <text x="800" y="1037" text-anchor="middle" class="sans muted tiny">ERONIX · A real-time simulation of patient flow and shared resources</text>
+</svg>
