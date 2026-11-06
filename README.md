@@ -1,172 +1,157 @@
-# ERONIX — Emergency Room Simulation
+<div align="center">
+  <img src="src/main/resources/icons/app-icon.png" alt="ERONIX emergency room cross icon" width="136" height="136">
 
-ERONIX is a standalone, GUI-first JavaFX application for simulating patient flow
-in a hospital emergency department. It was developed as an individual project
-and demonstrates Java threads, a custom semaphore, and the bounded-buffer
-Producer–Consumer pattern.
+  <h1>ERONIX</h1>
 
-The application displays `© 2026 Eng. Omar Abdelaziz` in its footer. The name
-is a clickable link to the [project owner's portfolio](https://engomarabd-elaziz.github.io/My-Portofolio/)
-in both the desktop and Android interfaces.
+  <p><strong>A live emergency department simulation for desktop and Android.</strong></p>
 
-The dashboard visualizes the actual simulation state; it does not run a
-separate presentation-only simulation. The interface is English-only. Both
-themes, the waiting room, doctors, treatment rooms, and
-chronological event timeline update from the same simulation engine.
+  <p>
+    Follow patients from the waiting room to treatment with a real, concurrent
+    simulation engine—not a presentation-only animation.
+  </p>
 
-## Run a ready-to-use application
+  <p>
+    <a href="https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest"><strong>Get ERONIX</strong></a>
+    &nbsp;·&nbsp;
+    <a href="#preview">See the dashboard</a>
+    &nbsp;·&nbsp;
+    <a href="#build-from-source">Build from source</a>
+  </p>
 
-Platform-specific application images include a Java runtime and the required
-JavaFX libraries. End users do not need to install Java, Maven, or JavaFX.
+  <p>
+    <a href="https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/EngOmarAbd-Elaziz/ERONIX?style=for-the-badge&color=3157d5"></a>
+    <a href="https://github.com/EngOmarAbd-Elaziz/ERONIX/actions/workflows/package.yml"><img alt="Release builds" src="https://img.shields.io/github/actions/workflow/status/EngOmarAbd-Elaziz/ERONIX/package.yml?branch=main&style=for-the-badge&label=release%20builds"></a>
+    <img alt="Android 14+" src="https://img.shields.io/badge/Android-14%2B-3ddc84?style=for-the-badge&logo=android&logoColor=white">
+    <img alt="Java 25" src="https://img.shields.io/badge/Java-25-ec2025?style=for-the-badge&logo=openjdk&logoColor=white">
+  </p>
+</div>
 
-- **Windows:** Download and extract the `ERONIX-windows` artifact. Run
-  `powershell -ExecutionPolicy Bypass -File .\create-desktop-shortcut.ps1` once
-  to place an ERONIX shortcut on your desktop, or launch `ERONIX/ERONIX.exe`
-  directly.
-- **Linux:** Download and extract the `ERONIX-linux` artifact. Run
-  `./create-desktop-shortcut.sh` once to place an ERONIX shortcut on your
-  desktop, or launch `ERONIX/bin/ERONIX` directly.
+---
 
-The application image is built for the operating system and CPU architecture
-of its build machine. The included GitHub Actions workflow builds Windows and
-Linux application images plus an Android APK when manually dispatched or when
-a version tag is pushed. Pushing a version tag such as `v1.0.0` publishes one
-GitHub release containing the three platform downloads.
+## Preview
 
-Ready-to-use builds for this machine are collected outside the source tree at
-`~/Downloads/ERONIX-Executables/`:
+<p align="center">
+  <img src="docs/screenshots/dashboard-preview.svg" alt="Illustrative ERONIX desktop dashboard preview" width="100%">
+</p>
 
-- `linux/ERONIX/` contains the Linux application image.
-- `android/ERONIX-debug.apk` contains the Android install package.
-- `windows/` is reserved for the Windows application image. A native Windows
-  build must be produced on Windows by running `scripts/package-windows.ps1`;
-  `jpackage` cannot cross-build a Windows launcher from Linux.
+<p align="center"><sub>Illustrative preview based on the real dashboard layout. Simulation data shown here is sample UI content.</sub></p>
 
-## Android app
+## A real-time simulation, at a glance
 
-The native Android app reuses the same Java simulation engine and presents an
-adaptive ERONIX dashboard. It supports Android 14 (API 34) and newer. Open the
-`android/` directory in Android Studio, allow Gradle sync to finish, then run
-the `app` configuration on an emulator or connected device.
+ERONIX is a standalone JavaFX emergency-room simulation and a native Android
+companion app. Both interfaces are powered by the same Java simulation engine.
+The dashboard stays connected to the running simulation as patients arrive,
+wait for a bed, receive treatment, and leave.
 
-The Android dashboard is split into five bottom-navigation pages: **Home**
-for live statistics and completion status, **Waiting** for waiting-room
-occupancy and patients outside, **Team** for doctors and treatment rooms,
-**Events** for the chronological timeline, and **Settings** for simulation
-configuration and controls. Switching pages does not restart or pause the
-simulation.
+| Follow the flow | Manage the department | Understand the concurrency |
+|---|---|---|
+| Watch waiting-room occupancy, patients outside, treatment progress, and completed cases update live. | Configure patient volume, waiting-room capacity, doctors, treatment rooms, and arrival/treatment times. | Explore Java threads, bounded buffers, custom semaphores, and coordinated resource sharing. |
 
-To build a debug APK from a machine with Android SDK and JDK 17 installed:
+### Designed to be easy to follow
+
+- **Live dashboard:** patient statistics, waiting-room seats, doctor and room
+  states, and a chronological event timeline.
+- **Adaptive Android app:** five focused pages—Home, Waiting, Team, Events,
+  and Settings—with portrait and landscape layouts.
+- **Light and dark themes:** switch the desktop theme while a simulation runs.
+- **One shared engine:** desktop and Android screens report the same simulation
+  state; the UI does not create its own fake activity.
+- **Ready-to-run releases:** desktop packages bundle a Java runtime. No Java,
+  Maven, or JavaFX installation is needed to launch them.
+
+## Downloads
+
+Get the latest release and choose the package for your device:
+
+| Platform | Download | Notes |
+|---|---|---|
+| **Windows** | [ERONIX-windows.zip](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-windows.zip) | Extract, then launch `ERONIX/ERONIX.exe`. |
+| **Linux x86_64** | [ERONIX-linux.tar.gz](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.tar.gz) | Extract, then launch `ERONIX/bin/ERONIX`. |
+| **Android** | [ERONIX-android.apk](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-android.apk) | Android 14 (API 34) or newer. Allow installation from your selected source. |
+
+On desktop, run the included `create-desktop-shortcut` script if you want an
+ERONIX shortcut. Visit [all releases](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases)
+for version history and release notes.
+
+## Build from source
+
+### Desktop application
+
+**Requirements:** JDK 25 or newer and Maven 3.9 or newer.
+
+```bash
+# Run the JavaFX application
+mvn javafx:run
+
+# Run tests and verify the project
+mvn clean verify
+```
+
+To package a self-contained application image, build on the target operating
+system. `jpackage` uses the JDK installed on that machine.
+
+```bash
+# Linux
+./scripts/package-linux.sh
+
+# Windows PowerShell
+.\scripts\package-windows.ps1
+```
+
+The application image is written to `dist/linux/ERONIX/` or
+`dist/windows/ERONIX/`, respectively.
+
+### Android application
+
+**Requirements:** Android Studio, Android SDK Platform 35, build tools 35.0.0,
+and JDK 17.
+
+Open the `android/` directory in Android Studio, or build and test from a
+terminal:
 
 ```bash
 cd android
 ./gradlew testDebugUnitTest assembleDebug
 ```
 
-The APK is written to
-`android/app/build/outputs/apk/debug/app-debug.apk`. For this machine, the
-ready-to-install debug APK is also staged at
-`~/Downloads/ERONIX-Executables/android/ERONIX-debug.apk`. The Android UI
-adapts its configuration and statistics grids, waiting-room seats, doctor
-cards, and dashboard width to the available screen width. It supports portrait
-and landscape rotation, keeps the configuration and live simulation state when
-the screen size changes, and remains vertically scrollable on compact screens.
+The debug APK is written to
+`android/app/build/outputs/apk/debug/app-debug.apk`.
 
-The Android project includes the Gradle 8.9 wrapper and uses Java 17, Android
-Gradle Plugin 8.7.3, compile SDK 35, and minimum SDK 34. Install Android SDK
-Platform 35 and the corresponding build tools through Android Studio's SDK
-Manager before building.
+## What the simulation demonstrates
 
-## Build an application image locally
-
-Build only for the operating system on which you are running the build. Install
-a JDK 21 or newer, Maven 3.9 or newer, and the platform's `jpackage` utility
-(included with the JDK).
-
-### Linux
-
-```bash
-./scripts/package-linux.sh
-```
-
-The ready-to-run application image is created at `dist/linux/ERONIX/`.
-
-### Windows PowerShell
-
-```powershell
-.\scripts\package-windows.ps1
-```
-
-The ready-to-run application image is created at `dist\windows\ERONIX\`.
-Launch `ERONIX.exe` inside that directory.
-
-## Run from source
-
-For development, install JDK 25 or newer and Maven 3.9 or newer, then run:
-
-```bash
-mvn javafx:run
-```
-
-Run the test suite with:
-
-```bash
-mvn clean verify
-```
-
-The JavaFX dashboard opens full-screen. Press `Esc` or `F11` to leave or toggle full-screen mode. Use the sun/moon
-button to change the theme. The interface is English-only.
-
-## Using the dashboard
-
-Before starting, configure the waiting-room capacity, number of doctors,
-patients, treatment rooms, and the minimum/maximum arrival and treatment times.
-Time values are entered in seconds, with up to three decimal places. Treatment
-duration is constrained to 1–5 seconds to remain compatible with the
-assignment. The default treatment-room count is two; the configurable range is
-1–20.
-
-Select **Start simulation** and follow the live statistics, waiting-room seats,
-doctor cards, treatment-room cards, and event timeline. Stop, reset, and run a
-new simulation from the controls. The theme can be changed while the simulation
-is running without resetting its state.
-
-## Simulation design
-
-- Each patient and doctor runs on an independent Java thread.
-- The waiting room is a bounded buffer synchronized by the project's custom
-  `empty`, `full`, and `mutex` semaphores. Patients wait outside when it is full;
-  doctors block when it is empty.
-- Treatment rooms are a separate shared resource managed by the custom
-  counting semaphore. Each doctor waits up to three seconds to acquire a room;
-  if none becomes available, the patient returns to the waiting room.
+- Each patient and doctor runs on its own Java thread.
+- The waiting room is a bounded buffer synchronized by custom `empty`, `full`,
+  and `mutex` semaphores. Patients wait outside when it is full; doctors block
+  when it is empty.
+- Treatment rooms are a separate shared resource managed by a custom counting
+  semaphore. If a room is unavailable, the patient returns to the waiting room.
 - Patients wait for treatment outcomes through notification rather than
-  busy-waiting. The coordinator waits for doctors to be ready and joins worker
-  threads before reporting completion.
-- Simulation callbacks update JavaFX only on the JavaFX Application Thread.
-- Console execution remains available for the assignment:
+  busy-waiting. The coordinator joins worker threads before reporting
+  completion.
+- Simulation callbacks update JavaFX on the JavaFX Application Thread.
 
-  ```bash
-  mvn -q -DskipTests package
-  java -cp target/classes hospital.simulation.Hospital
-  ```
+The interface supports configurable waiting-room capacity (1–30), doctors
+(1–20), patients (1–200), and treatment rooms (1–20). Treatment times are
+constrained to 1–5 seconds.
 
-## Project map
+## Project layout
 
-| Path | Responsibility |
+| Path | Purpose |
 |---|---|
-| `src/main/java/hospital/simulation/` | Simulation threads, custom semaphores, state, and event reporting |
-| `src/main/java/hospital/ui/HospitalApp.java` | JavaFX dashboard, controls, themes, and localization |
-| `src/main/java/hospital/ui/DashboardText.java` | English interface and event text |
-| `src/main/resources/icons/app-icon.png` | Embedded application and dashboard icon |
-| `ERONIX.ico` | Windows application-image icon |
+| `src/main/java/hospital/simulation/` | Shared simulation engine, state, and events |
+| `src/main/java/hospital/ui/` | JavaFX desktop dashboard |
 | `src/main/resources/styles/` | Light and dark themes |
-| `scripts/` | Platform-specific `jpackage` build scripts |
-| `.github/workflows/package.yml` | Automated Windows and Linux application-image builds |
-| `android/` | Native Android app, reusing the shared simulation engine |
+| `src/main/resources/icons/` | Application icon |
+| `android/` | Native Android app and Gradle wrapper |
+| `scripts/` | Native desktop packaging and shortcut scripts |
+| `.github/workflows/` | Android CI and tagged multi-platform release builds |
+| `docs/screenshots/` | README dashboard preview |
 
-## Assignment hand-in
+## License and credits
 
-This is configured as an individual, self-contained application. Before
-submitting it for a course, follow the instructor's packaging and naming rules;
-course-specific identifiers and submission requirements are not assumed here.
+ERONIX is an individual project by [Eng. Omar Abdelaziz](https://engomarabd-elaziz.github.io/My-Portofolio/).
+The desktop and Android apps link to the project owner's portfolio.
+
+---
+
+<p align="center"><sub>Built to make operating systems concepts visible, measurable, and a little more human.</sub></p>
