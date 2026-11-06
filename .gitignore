@@ -19,6 +19,38 @@
 
 # Package Files #
 *.jar
+!/android/gradle/wrapper/gradle-wrapper.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+hs_err_pid*
+replay_pid*
+# Compiled class file
+*.class
+/target/
+/dist/
+/ERONIX-Executables/linux/ERONIX/
+/android/.gradle/
+/android/local.properties
+/android/build/
+/android/app/build/
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
 *.war
 *.nar
 *.ear
