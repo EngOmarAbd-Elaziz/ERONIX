@@ -1,0 +1,102 @@
+name: Build ERONIX releases
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  package-linux:
+    name: Package Linux application
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: Build Linux application image
+        env:
+          ERONIX_SKIP_DESKTOP_SHORTCUT: "1"
+        run: bash scripts/package-linux.sh
+      - name: Archive Linux application
+        run: tar -czf "$RUNNER_TEMP/ERONIX-linux.tar.gz" -C dist/linux .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ERONIX-linux
+          path: ${{ runner.temp }}/ERONIX-linux.tar.gz
+          if-no-files-found: error
+
+  package-windows:
+    name: Package Windows application
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+      - name: Build Windows application image
+        shell: pwsh
+        env:
+          ERONIX_SKIP_DESKTOP_SHORTCUT: "1"
+        run: ./scripts/package-windows.ps1
+      - name: Archive Windows application
+        shell: pwsh
+        run: Compress-Archive -Path dist/windows/* -DestinationPath "$env:RUNNER_TEMP/ERONIX-windows.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ERONIX-windows
+          path: ${{ runner.temp }}/ERONIX-windows.zip
+          if-no-files-found: error
+
+  package-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Test and build APK
+        working-directory: android
+        run: ./gradlew testDebugUnitTest assembleDebug
+      - name: Stage Android APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/ERONIX-android.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ERONIX-android
+          path: ${{ runner.temp }}/ERONIX-android.apk
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - package-linux
+      - package-windows
+      - package-android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ERONIX-*
+          path: release-assets
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: ERONIX ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release-assets/*
+          fail_on_unmatched_files: true
