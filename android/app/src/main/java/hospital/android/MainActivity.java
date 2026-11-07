@@ -6,6 +6,9 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -33,8 +36,13 @@ import hospital.update.UpdateChecker;
 import hospital.simulation.SimulationConfig;
 import hospital.simulation.SimulationController;
 import hospital.simulation.SimulationEvent;
+import hospital.simulation.SimulationReport;
 import hospital.simulation.SimulationSnapshot;
+import hospital.simulation.WordReportExporter;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -47,6 +55,7 @@ import static hospital.simulation.SimulationSnapshot.RoomStatus;
 import static hospital.simulation.SimulationSnapshot.Status;
 
 public final class MainActivity extends Activity {
+    private static final int EXPORT_REPORT_REQUEST = 9104;
     private static final String PORTFOLIO_URL =
             "https://engomarabd-elaziz.github.io/My-Portofolio/";
     private static final int BRAND = Color.rgb(49, 87, 213);
@@ -70,6 +79,7 @@ public final class MainActivity extends Activity {
                     .withZone(ZoneId.systemDefault());
 
     private final List<String> eventLines = new ArrayList<>();
+    private final List<SimulationEvent> reportEvents = new ArrayList<>();
     private final EditText[] numberFields = new EditText[8];
     private boolean darkTheme;
     private SimulationController controller;
@@ -87,6 +97,11 @@ public final class MainActivity extends Activity {
     private ScrollView timelineScroll;
     private TextView statusLabel;
     private TextView[] statValues;
+    private TextView reportSummary;
+    private TextView[] reportValues;
+    private final List<ReportChartView> reportCharts = new ArrayList<>();
+    private Button exportReportButton;
+    private byte[] pendingReport;
     private TextView occupancyLabel;
     private TextView outsideLabel;
     private TextView completionLabel;
@@ -118,6 +133,30 @@ public final class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != EXPORT_REPORT_REQUEST) {
+            return;
+        }
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) {
+            pendingReport = null;
+            return;
+        }
+        try (OutputStream output = getContentResolver().openOutputStream(data.getData())) {
+            if (output == null || pendingReport == null) {
+                throw new IOException("The selected document could not be opened.");
+            }
+            output.write(pendingReport);
+            Toast.makeText(this, "Word report saved successfully.", Toast.LENGTH_LONG).show();
+        } catch (IOException exception) {
+            Toast.makeText(this, "Could not save the Word report: " + exception.getMessage(),
+                    Toast.LENGTH_LONG).show();
+        } finally {
+            pendingReport = null;
+        }
+    }
+
     private void buildDashboard() {
         Palette palette = palette();
         pages.clear();
@@ -145,9 +184,10 @@ public final class MainActivity extends Activity {
         createPage("Waiting room", "Follow patients waiting for care");
         createPage("Care team", "Doctors and shared treatment rooms");
         createPage("Activity", "Chronological simulation events");
+        createPage("Report", "Simulation outcomes and performance");
         createPage("Settings", "Configure and control the simulation");
 
-        content = pages.get(4);
+        content = pages.get(5);
         buildSetupCard(palette);
 
         content = pages.get(0);
@@ -165,6 +205,9 @@ public final class MainActivity extends Activity {
 
         content = pages.get(3);
         buildTimelineCard(palette);
+
+        content = pages.get(4);
+        buildReportPage(palette);
 
         buildNavigation(palette);
         buildCopyrightFooter(palette);
@@ -235,7 +278,7 @@ public final class MainActivity extends Activity {
     }
 
     private void buildNavigation(Palette palette) {
-        String[] labels = {"Home", "Waiting", "Team", "Events", "Settings"};
+        String[] labels = {"Home", "Waiting", "Team", "Events", "Report", "Settings"};
         LinearLayout navigation = new LinearLayout(this);
         navigation.setGravity(Gravity.CENTER);
         navigation.setPadding(dp(6), dp(7), dp(6), dp(7));
@@ -284,6 +327,9 @@ public final class MainActivity extends Activity {
         }
         if (activePage == 3 && timelineScroll != null) {
             timelineScroll.post(() -> timelineScroll.fullScroll(View.FOCUS_DOWN));
+        }
+        if (activePage == 4) {
+            renderReport();
         }
     }
 
@@ -551,6 +597,131 @@ public final class MainActivity extends Activity {
         addCard(card);
     }
 
+    private void buildReportPage(Palette palette) {
+        reportCharts.clear();
+        LinearLayout overview = card("Simulation report",
+                "Refreshes with the latest simulation snapshot", palette);
+        reportSummary = text("Run a simulation to generate a report.", 13,
+                palette.muted, false);
+        overview.addView(reportSummary);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        Button refresh = button("Refresh report", palette, false);
+        exportReportButton = button("Export Word", palette, true);
+        actions.addView(refresh, new LinearLayout.LayoutParams(0, dp(44), 1));
+        LinearLayout.LayoutParams exportParams = new LinearLayout.LayoutParams(0, dp(44), 1);
+        exportParams.leftMargin = dp(8);
+        actions.addView(exportReportButton, exportParams);
+        LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        actionParams.topMargin = dp(12);
+        overview.addView(actions, actionParams);
+        refresh.setOnClickListener(view -> renderReport());
+        exportReportButton.setOnClickListener(view -> exportReport());
+        addCard(overview);
+
+        LinearLayout metrics = card("Key metrics", "Patient outcomes and operational activity", palette);
+        String[] labels = {"Completed", "Completion rate", "Avg completed treatment",
+                "Simulation time", "Events", "Warnings"};
+        reportValues = new TextView[labels.length];
+        int columns = gridColumns();
+        for (int rowStart = 0; rowStart < labels.length; rowStart += columns) {
+            LinearLayout row = new LinearLayout(this);
+            for (int column = 0; column < columns && rowStart + column < labels.length; column++) {
+                int index = rowStart + column;
+                LinearLayout metric = new LinearLayout(this);
+                metric.setOrientation(LinearLayout.VERTICAL);
+                metric.setPadding(dp(11), dp(10), dp(11), dp(10));
+                metric.setBackground(round(palette.raised, palette.border, 12));
+                metric.addView(text(labels[index], 11, palette.muted, true));
+                reportValues[index] = text("—", 20, palette.text, true);
+                metric.addView(reportValues[index]);
+                LinearLayout.LayoutParams metricParams = new LinearLayout.LayoutParams(0,
+                        ViewGroup.LayoutParams.WRAP_CONTENT, 1);
+                if (column > 0) {
+                    metricParams.leftMargin = dp(6);
+                }
+                row.addView(metric, metricParams);
+            }
+            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            rowParams.topMargin = rowStart == 0 ? dp(10) : dp(8);
+            metrics.addView(row, rowParams);
+        }
+        addCard(metrics);
+
+        addReportChart("Patient distribution", ReportChartView.PIE, palette);
+        addReportChart("Patient outcomes", ReportChartView.BAR, palette);
+        addReportChart("Treatment duration histogram", ReportChartView.HISTOGRAM, palette);
+        renderReport();
+    }
+
+    private void addReportChart(String title, int chartType, Palette palette) {
+        LinearLayout chartCard = card(title, "Based on recorded simulation events", palette);
+        ReportChartView chart = new ReportChartView(this, chartType);
+        reportCharts.add(chart);
+        chartCard.addView(chart, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(250)));
+        addCard(chartCard);
+    }
+
+    private void renderReport() {
+        if (reportValues == null || reportSummary == null) {
+            return;
+        }
+        if (latestSnapshot == null) {
+            reportSummary.setText("Run a simulation to generate a report.");
+            for (TextView value : reportValues) {
+                value.setText("—");
+            }
+            exportReportButton.setEnabled(false);
+            for (ReportChartView chart : reportCharts) {
+                chart.setReport(null);
+            }
+            return;
+        }
+
+        SimulationReport report = SimulationReport.from(latestSnapshot, reportEvents);
+        reportSummary.setText(String.format(Locale.getDefault(),
+                "%s  ·  %.1f%% complete  ·  %d patients  ·  %d recorded events",
+                latestSnapshot.status().name(), report.completionPercent(),
+                report.totalPatients(), report.eventCount()));
+        reportValues[0].setText(report.completedPatients() + " / " + report.totalPatients());
+        reportValues[1].setText(String.format(Locale.getDefault(), "%.1f%%",
+                report.completionPercent()));
+        reportValues[2].setText(String.format(Locale.getDefault(), "%.2f s",
+                report.averageTreatmentSeconds()));
+        reportValues[3].setText(String.format(Locale.getDefault(), "%.2f s",
+                report.simulationSeconds()));
+        reportValues[4].setText(Integer.toString(report.eventCount()));
+        reportValues[5].setText(Integer.toString(report.warnings()));
+        exportReportButton.setEnabled(true);
+        for (ReportChartView chart : reportCharts) {
+            chart.setReport(report);
+        }
+    }
+
+    private void exportReport() {
+        if (latestSnapshot == null) {
+            Toast.makeText(this, "Run a simulation before exporting a report.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        try {
+            SimulationReport report = SimulationReport.from(latestSnapshot, reportEvents);
+            pendingReport = WordReportExporter.toDocx(report, Instant.now());
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            intent.putExtra(Intent.EXTRA_TITLE, "ERONIX-report.docx");
+            startActivityForResult(intent, EXPORT_REPORT_REQUEST);
+        } catch (IOException | ActivityNotFoundException exception) {
+            pendingReport = null;
+            Toast.makeText(this, "Could not prepare the Word report: "
+                    + exception.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
     private LinearLayout card(String title, String subtitle, Palette palette) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -585,6 +756,7 @@ public final class MainActivity extends Activity {
                     secondsField(6, "Min treatment", 1, 5),
                     secondsField(7, "Max treatment", 1, 5));
             eventLines.clear();
+            reportEvents.clear();
             latestSnapshot = null;
             controller = new SimulationController(config, this::onSimulationUpdate);
             controller.setConsoleEnabled(false);
@@ -619,6 +791,7 @@ public final class MainActivity extends Activity {
         }
         latestSnapshot = null;
         eventLines.clear();
+        reportEvents.clear();
         buildDashboard();
         renderIdle();
     }
@@ -648,6 +821,7 @@ public final class MainActivity extends Activity {
             }
             latestSnapshot = snapshot;
             if (event != null) {
+                reportEvents.add(event);
                 eventLines.add(String.format(Locale.getDefault(), "%s   %-8s  %s",
                         EVENT_TIME.format(event.timestamp()), category(event), event.message()));
                 if (eventLines.size() > 300) {
@@ -717,6 +891,9 @@ public final class MainActivity extends Activity {
         renderDoctors(snapshot, palette);
         renderRooms(snapshot, palette);
         renderTimeline();
+        if (activePage == 4) {
+            renderReport();
+        }
     }
 
     private void renderSeats(SimulationSnapshot snapshot, Palette palette) {
@@ -993,6 +1170,153 @@ public final class MainActivity extends Activity {
         int screenWidth = getResources().getConfiguration().screenWidthDp;
         int contentWidth = screenWidth >= 840 ? 760 : Math.max(260, screenWidth - 24);
         return Math.max(2, Math.min(8, (contentWidth - 42) / 88));
+    }
+
+    private final class ReportChartView extends View {
+        static final int PIE = 0;
+        static final int BAR = 1;
+        static final int HISTOGRAM = 2;
+        private final int chartType;
+        private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private SimulationReport report;
+
+        private ReportChartView(Activity context, int chartType) {
+            super(context);
+            this.chartType = chartType;
+            setContentDescription("Simulation report chart");
+        }
+
+        private void setReport(SimulationReport report) {
+            this.report = report;
+            invalidate();
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+            Palette colors = palette();
+            if (report == null) {
+                drawText(canvas, "Run a simulation to see chart data", dp(16), dp(44),
+                        colors.muted, 13, false);
+                return;
+            }
+            if (chartType == PIE) {
+                drawPie(canvas, colors);
+            } else if (chartType == BAR) {
+                drawOutcomeBars(canvas, colors);
+            } else {
+                drawHistogram(canvas, colors);
+            }
+        }
+
+        private void drawPie(Canvas canvas, Palette colors) {
+            List<SimulationReport.PatientGroup> groups = report.patientGroups().stream()
+                    .filter(group -> group.count() > 0)
+                    .toList();
+            if (groups.isEmpty()) {
+                drawText(canvas, "No patient outcomes recorded yet", dp(16), dp(44),
+                        colors.muted, 13, false);
+                return;
+            }
+            int[] sliceColors = {BRAND, TEAL, WARNING, SUCCESS,
+                    Color.rgb(115, 86, 189), colors.muted};
+            float radius = Math.min(dp(78), getWidth() * 0.235f);
+            float centerX = dp(12) + radius;
+            float centerY = getHeight() / 2f;
+            RectF bounds = new RectF(centerX - radius, centerY - radius,
+                    centerX + radius, centerY + radius);
+            int total = groups.stream().mapToInt(SimulationReport.PatientGroup::count).sum();
+            float start = -90;
+            for (int i = 0; i < groups.size(); i++) {
+                SimulationReport.PatientGroup group = groups.get(i);
+                float sweep = group.count() * 360f / total;
+                paint.setColor(sliceColors[i % sliceColors.length]);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawArc(bounds, start, sweep, true, paint);
+                start += sweep;
+            }
+            float legendX = centerX + radius + dp(14);
+            float y = centerY - (groups.size() * dp(21)) / 2f;
+            for (int i = 0; i < groups.size(); i++) {
+                paint.setColor(sliceColors[i % sliceColors.length]);
+                canvas.drawCircle(legendX + dp(5), y - dp(4), dp(4), paint);
+                drawText(canvas, groups.get(i).label() + "  " + groups.get(i).count(),
+                        legendX + dp(16), y, colors.text, 11, false);
+                y += dp(21);
+            }
+        }
+
+        private void drawOutcomeBars(Canvas canvas, Palette colors) {
+            List<SimulationReport.PatientGroup> groups = report.patientGroups();
+            int max = Math.max(1, groups.stream()
+                    .mapToInt(SimulationReport.PatientGroup::count).max().orElse(0));
+            float labelWidth = dp(90);
+            float left = dp(16) + labelWidth;
+            float right = getWidth() - dp(34);
+            float barWidth = Math.max(dp(30), right - left);
+            float rowHeight = Math.min(dp(32), (getHeight() - dp(28)) / (float) groups.size());
+            float y = dp(16);
+            for (SimulationReport.PatientGroup group : groups) {
+                drawText(canvas, group.label(), dp(12), y + dp(14), colors.muted, 10, false);
+                paint.setColor(colors.raised);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawRoundRect(left, y + dp(2), left + barWidth, y + dp(19),
+                        dp(6), dp(6), paint);
+                float valueWidth = barWidth * group.count() / max;
+                if (group.count() > 0) {
+                    paint.setColor(BRAND);
+                    canvas.drawRoundRect(left, y + dp(2), left + valueWidth,
+                            y + dp(19), dp(6), dp(6), paint);
+                }
+                drawText(canvas, Integer.toString(group.count()),
+                        Math.min(right - dp(15), left + valueWidth + dp(5)),
+                        y + dp(14), colors.text, 10, true);
+                y += rowHeight;
+            }
+        }
+
+        private void drawHistogram(Canvas canvas, Palette colors) {
+            List<SimulationReport.DurationBin> bins = report.treatmentHistogram();
+            float left = dp(38);
+            float right = getWidth() - dp(14);
+            float top = dp(18);
+            float bottom = getHeight() - dp(38);
+            float plotHeight = Math.max(dp(40), bottom - top);
+            int max = Math.max(1, bins.stream()
+                    .mapToInt(SimulationReport.DurationBin::count).max().orElse(0));
+            paint.setStrokeWidth(dp(1));
+            paint.setColor(colors.border);
+            for (int line = 0; line <= 4; line++) {
+                float y = bottom - plotHeight * line / 4f;
+                canvas.drawLine(left, y, right, y, paint);
+            }
+            float slot = (right - left) / bins.size();
+            float barWidth = slot * 0.52f;
+            for (int i = 0; i < bins.size(); i++) {
+                SimulationReport.DurationBin bin = bins.get(i);
+                float height = plotHeight * bin.count() / max;
+                float x = left + slot * i + (slot - barWidth) / 2f;
+                paint.setColor(TEAL);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawRoundRect(x, bottom - height, x + barWidth, bottom,
+                        dp(5), dp(5), paint);
+                drawText(canvas, Integer.toString(bin.count()), x, bottom - height - dp(5),
+                        colors.text, 10, true);
+                drawText(canvas, bin.label().replace(" s", ""), left + slot * i,
+                        bottom + dp(19), colors.muted, 9, false);
+            }
+        }
+
+        private void drawText(
+                Canvas canvas, String value, float x, float baseline,
+                int color, float sizeSp, boolean bold) {
+            paint.setColor(color);
+            paint.setTextSize(sizeSp * getResources().getDisplayMetrics().scaledDensity);
+            paint.setTypeface(Typeface.create(Typeface.DEFAULT,
+                    bold ? Typeface.BOLD : Typeface.NORMAL));
+            paint.setStyle(Paint.Style.FILL);
+            canvas.drawText(value, x, baseline, paint);
+        }
     }
 
     private record Palette(

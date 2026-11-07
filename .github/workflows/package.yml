@@ -137,8 +137,8 @@ jobs:
               && [ -n "$ANDROID_KEY_ALIAS" ] && [ -n "$ANDROID_KEY_PASSWORD" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Android APK skipped; configure all four Android signing secrets to publish it."
+            echo "::error::A signed Android APK is required. Configure all four Android signing secrets before publishing a release."
+            exit 1
           fi
       - name: Decode Android release keystore
         if: steps.signing.outputs.ready == 'true'

@@ -6,7 +6,7 @@
   ### Real-Time Emergency Department Simulation Engine
 
   <p align="center">
-    <img src="https://img.shields.io/badge/release-v1.0.3-0052CC?style=for-the-badge&logo=github&logoColor=white" alt="Version 1.0.3" />
+    <img src="https://img.shields.io/badge/release-v1.0.4-0052CC?style=for-the-badge&logo=github&logoColor=white" alt="Version 1.0.4" />
     <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android-4E5D6C?style=for-the-badge" alt="Platforms" />
     <img src="https://img.shields.io/badge/Java-25-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java 25" />
     <img src="https://img.shields.io/badge/JavaFX-Desktop-007396?style=for-the-badge&logo=java&logoColor=white" alt="JavaFX" />
@@ -49,20 +49,22 @@ Whether you are exploring multi-threaded synchronization or observing how patien
 - **Cross-Platform Delivery:** Native packages built specifically for Windows (`.msi`), Linux (`.deb` / `.rpm`), and Android (`.apk`).
 - **Concurrency in Action:** Directly visualizes critical OS concepts like semaphores, mutexes, bounded buffers, and thread lifecycles.
 - **Adaptive Interface Themes:** Fully custom Light and Dark mode stylesheets built for readability during long monitoring sessions.
-- **Comprehensive Mobile Control:** The Android application neatly sections functionality into dedicated Home, Waiting, Team, Events, and Settings panels.
+- **Simulation reports:** Review outcome, treatment-duration, and patient-flow charts with operational statistics, then export a Word document.
+- **Comprehensive Mobile Control:** The Android application neatly sections functionality into dedicated Home, Waiting, Team, Events, Report, and Settings panels.
 
 ---
 
-## 📦 Downloads (v1.0.3 Releases)
+## 📦 Downloads (v1.0.4 Releases)
 
 Select the package corresponding to your operating system:
 
 | Platform | Format | Action Link |
 | :--- | :--- | :--- |
-| **Windows** | MSI Installer | [Download ERONIX.msi](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/download/v1.0.3/ERONIX.msi) |
-| **Fedora / RHEL** | RPM Package | [Download ERONIX.rpm](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/download/v1.0.3/ERONIX.rpm) |
-| **Ubuntu / Debian** | DEB Package | [Download ERONIX.deb](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/download/v1.0.3/ERONIX.deb) |
-| **Android (14+)** | APK Package | [Download ERONIX.apk](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/download/v1.0.3/ERONIX.apk) |
+| **Windows** | MSI Installer | [Download ERONIX-windows.msi](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-windows.msi) |
+| **Ubuntu / Debian** | DEB Package | [Download ERONIX-linux.deb](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.deb) |
+| **Fedora / RHEL** | RPM Package | [Download ERONIX-linux.rpm](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.rpm) |
+| **Linux (portable)** | AppImage | [Download ERONIX-linux-x86_64.AppImage](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux-x86_64.AppImage) |
+| **Android (14+)** | APK Package | [Download ERONIX-android.apk](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-android.apk) |
 
 ---
 

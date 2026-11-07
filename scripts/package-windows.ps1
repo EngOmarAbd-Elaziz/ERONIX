@@ -5,7 +5,7 @@ Push-Location $root
 try {
     $inputDirectory = Join-Path $root "target/package-input"
     $outputDirectory = Join-Path $root "dist/windows/installers"
-    $appVersion = if ($env:ERONIX_VERSION) { $env:ERONIX_VERSION } else { "1.0.0" }
+    $appVersion = if ($env:ERONIX_VERSION) { $env:ERONIX_VERSION } else { "1.0.4" }
     if ($appVersion -notmatch '^\d+(\.\d+)*$') {
         throw "ERONIX_VERSION must be a numeric dotted version."
     }

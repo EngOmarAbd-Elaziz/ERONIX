@@ -4,7 +4,9 @@ import hospital.simulation.SimulationConfig;
 import hospital.simulation.SimulationController;
 import hospital.simulation.SimulationEvent;
 import hospital.simulation.SimulationObserver;
+import hospital.simulation.SimulationReport;
 import hospital.simulation.SimulationSnapshot;
+import hospital.simulation.WordReportExporter;
 import hospital.update.UpdateChecker;
 import javafx.animation.AnimationTimer;
 import javafx.animation.FadeTransition;
@@ -27,6 +29,11 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.chart.BarChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.PieChart;
+import javafx.scene.chart.XYChart;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -39,8 +46,13 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -98,6 +110,7 @@ public final class HospitalApp extends Application {
     private Button startButton;
     private Button stopButton;
     private Button resetButton;
+    private Button reportButton;
     private Button themeButton;
     private Button fullScreenButton;
     private boolean darkTheme;
@@ -209,9 +222,233 @@ public final class HospitalApp extends Application {
         Button updateButton = new Button(t("button.updates"));
         updateButton.getStyleClass().add("quiet-button");
         updateButton.setOnAction(event -> checkForUpdates(updateButton));
+        reportButton = new Button(t("button.report"));
+        reportButton.getStyleClass().add("quiet-button");
+        reportButton.setOnAction(event -> openReportWindow());
         header.getChildren().addAll(
-                mark, titleBlock, spacer, statusBadge, updateButton, themeButton, fullScreenButton);
+                mark, titleBlock, spacer, statusBadge, updateButton, reportButton,
+                themeButton, fullScreenButton);
         return header;
+    }
+
+    private void openReportWindow() {
+        if (latestSnapshot == null) {
+            showUpdateMessage(Alert.AlertType.INFORMATION, t("report.unavailable"));
+            return;
+        }
+        SimulationReport report = SimulationReport.from(latestSnapshot, List.copyOf(events));
+        Stage reportStage = new Stage();
+        reportStage.initOwner(stage);
+        reportStage.setTitle(t("report.title"));
+        reportStage.getIcons().add(new Image(getClass().getResourceAsStream(APP_ICON)));
+
+        VBox page = new VBox(18);
+        page.setPadding(new Insets(24));
+        page.getStyleClass().add("dashboard-content");
+        HBox heading = new HBox(12);
+        heading.setAlignment(Pos.CENTER_LEFT);
+        VBox title = new VBox(4);
+        Label headingLabel = new Label(t("report.title"));
+        headingLabel.getStyleClass().add("page-heading");
+        Label summary = new Label(reportSummary(report));
+        summary.getStyleClass().add("page-description");
+        title.getChildren().addAll(headingLabel, summary);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Button refresh = new Button(t("report.refresh"));
+        refresh.getStyleClass().add("quiet-button");
+        refresh.setOnAction(event -> {
+            if (latestSnapshot == null) {
+                showUpdateMessage(Alert.AlertType.INFORMATION, t("report.unavailable"));
+            } else {
+                reportStage.getScene().setRoot(createReportRoot(reportStage));
+            }
+        });
+        Button export = new Button(t("report.export"));
+        export.getStyleClass().add("primary-button");
+        export.setOnAction(event -> exportCurrentReport());
+        heading.getChildren().addAll(title, spacer, refresh, export);
+        page.getChildren().add(heading);
+        page.getChildren().addAll(createReportMetrics(report), reportNarrative(report),
+                createReportCharts(report));
+        ScrollPane scroll = new ScrollPane(page);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().addAll("main-scroll", "app-root");
+        reportStage.setScene(new Scene(scroll, 1180, 900));
+        reportStage.getScene().getStylesheets().setAll(
+                getClass().getResource(darkTheme ? DARK_THEME : LIGHT_THEME).toExternalForm());
+        reportStage.setMinWidth(840);
+        reportStage.setMinHeight(620);
+        reportStage.show();
+    }
+
+    private ScrollPane createReportRoot(Stage reportStage) {
+        SimulationReport report = SimulationReport.from(latestSnapshot, List.copyOf(events));
+        VBox page = new VBox(18);
+        page.setPadding(new Insets(24));
+        page.getStyleClass().add("dashboard-content");
+        HBox heading = new HBox(12);
+        heading.setAlignment(Pos.CENTER_LEFT);
+        VBox title = new VBox(4);
+        Label headingLabel = new Label(t("report.title"));
+        headingLabel.getStyleClass().add("page-heading");
+        Label summary = new Label(reportSummary(report));
+        summary.getStyleClass().add("page-description");
+        title.getChildren().addAll(headingLabel, summary);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        Button refresh = new Button(t("report.refresh"));
+        refresh.getStyleClass().add("quiet-button");
+        refresh.setOnAction(event -> {
+            if (latestSnapshot == null) {
+                showUpdateMessage(Alert.AlertType.INFORMATION, t("report.unavailable"));
+            } else {
+                reportStage.getScene().setRoot(createReportRoot(reportStage));
+            }
+        });
+        Button export = new Button(t("report.export"));
+        export.getStyleClass().add("primary-button");
+        export.setOnAction(event -> exportCurrentReport());
+        heading.getChildren().addAll(title, spacer, refresh, export);
+        page.getChildren().addAll(heading, createReportMetrics(report), reportNarrative(report),
+                createReportCharts(report));
+        ScrollPane scroll = new ScrollPane(page);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().addAll("main-scroll", "app-root");
+        return scroll;
+    }
+
+    private GridPane createReportMetrics(SimulationReport report) {
+        String[] labels = {
+                t("report.completed"), t("report.completion.rate"),
+                t("report.average.treatment"), t("report.simulation.duration"),
+                t("report.events"), t("report.warnings")
+        };
+        String[] values = {
+                report.completedPatients() + " / " + report.totalPatients(),
+                String.format(java.util.Locale.ROOT, "%.1f%%", report.completionPercent()),
+                String.format(java.util.Locale.ROOT, "%.2f s", report.averageTreatmentSeconds()),
+                String.format(java.util.Locale.ROOT, "%.2f s", report.simulationSeconds()),
+                Integer.toString(report.eventCount()),
+                Integer.toString(report.warnings())
+        };
+        GridPane metrics = new GridPane();
+        metrics.setHgap(12);
+        metrics.setVgap(12);
+        for (int i = 0; i < labels.length; i++) {
+            Label value = new Label(values[i]);
+            value.getStyleClass().add("stat-value");
+            Label label = new Label(labels[i]);
+            label.getStyleClass().add("stat-label");
+            VBox card = new VBox(8, label, value);
+            card.getStyleClass().add("stat-card");
+            metrics.add(card, i % 3, i / 3);
+            GridPane.setHgrow(card, Priority.ALWAYS);
+        }
+        for (int column = 0; column < 3; column++) {
+            ColumnConstraints constraint = new ColumnConstraints();
+            constraint.setPercentWidth(100.0 / 3);
+            metrics.getColumnConstraints().add(constraint);
+        }
+        return metrics;
+    }
+
+    private VBox createReportCharts(SimulationReport report) {
+        VBox charts = new VBox(16);
+        HBox upperCharts = new HBox(16);
+        PieChart distribution = new PieChart(FXCollections.observableArrayList(
+                report.patientGroups().stream()
+                        .map(group -> new PieChart.Data(group.label(), group.count()))
+                        .toList()));
+        distribution.setTitle(t("report.outcomes"));
+        distribution.setLegendVisible(true);
+        distribution.setLabelsVisible(true);
+        distribution.setMinHeight(320);
+        distribution.getStyleClass().add("report-chart");
+
+        BarChart<String, Number> patientBars = createBarChart(t("report.patients"));
+        XYChart.Series<String, Number> patientSeries = new XYChart.Series<>();
+        patientSeries.setName(t("report.count"));
+        report.patientGroups().stream()
+                .filter(group -> group.count() > 0)
+                .forEach(group -> patientSeries.getData().add(
+                        new XYChart.Data<>(group.label(), group.count())));
+        patientBars.getData().add(patientSeries);
+        patientBars.setMinHeight(320);
+        HBox.setHgrow(distribution, Priority.ALWAYS);
+        HBox.setHgrow(patientBars, Priority.ALWAYS);
+        upperCharts.getChildren().addAll(distribution, patientBars);
+
+        BarChart<String, Number> histogram = createBarChart(t("report.duration"));
+        XYChart.Series<String, Number> durationSeries = new XYChart.Series<>();
+        durationSeries.setName(t("report.treatments"));
+        report.treatmentHistogram().forEach(bin -> durationSeries.getData().add(
+                new XYChart.Data<>(bin.label(), bin.count())));
+        histogram.getData().add(durationSeries);
+        histogram.setTitle(t("report.histogram"));
+        histogram.setMinHeight(300);
+        charts.getChildren().addAll(upperCharts, histogram);
+        return charts;
+    }
+
+    private BarChart<String, Number> createBarChart(String yAxisTitle) {
+        CategoryAxis xAxis = new CategoryAxis();
+        NumberAxis yAxis = new NumberAxis();
+        yAxis.setLabel(yAxisTitle);
+        BarChart<String, Number> chart = new BarChart<>(xAxis, yAxis);
+        chart.setAnimated(false);
+        chart.setLegendVisible(false);
+        chart.setCategoryGap(12);
+        chart.setBarGap(3);
+        chart.setMinWidth(390);
+        return chart;
+    }
+
+    private Label reportNarrative(SimulationReport report) {
+        Label narrative = new Label(report.narrative());
+        narrative.setWrapText(true);
+        narrative.getStyleClass().add("report-narrative");
+        return narrative;
+    }
+
+    private String reportSummary(SimulationReport report) {
+        return String.format(java.util.Locale.ROOT, "%s · %.1f%% %s · %d %s",
+                DashboardText.status(report.status()), report.completionPercent(),
+                t("report.complete"), report.totalPatients(), t("report.patients.lower"));
+    }
+
+    private void exportReport(SimulationReport report) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(t("report.save"));
+        chooser.setInitialFileName("ERONIX-report.docx");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Word document (*.docx)", "*.docx"));
+        File destination = chooser.showSaveDialog(stage);
+        if (destination == null) {
+            return;
+        }
+
+        try {
+            Files.write(destination.toPath(), WordReportExporter.toDocx(report, Instant.now()));
+            Alert alert = new Alert(Alert.AlertType.INFORMATION, t("report.saved"));
+            alert.setTitle(t("report.title"));
+            alert.setHeaderText(null);
+            alert.showAndWait();
+        } catch (IOException exception) {
+            Alert alert = new Alert(Alert.AlertType.ERROR,
+                    t("report.save.error") + "\n" + exception.getMessage());
+            alert.setTitle(t("report.title"));
+            alert.setHeaderText(null);
+            alert.showAndWait();
+        }
+    }
+
+    private void exportCurrentReport() {
+        if (latestSnapshot == null) {
+            showUpdateMessage(Alert.AlertType.INFORMATION, t("report.unavailable"));
+            return;
+        }
+        exportReport(SimulationReport.from(latestSnapshot, List.copyOf(events)));
     }
 
     private void checkForUpdates(Button button) {
