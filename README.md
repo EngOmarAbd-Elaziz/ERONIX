@@ -106,3 +106,9 @@ Designed, engineered, and maintained by **Eng. Omar Abdelaziz**
 <sub>Crafted with passion to make concurrent systems visible, interactive, and impactful.</sub>
 
 </div>
+
+## 📄 License
+
+ERONIX is distributed under the [MIT License](LICENSE). This license applies to
+the project materials owned by the author; third-party dependencies and assets
+remain under their respective licenses.
