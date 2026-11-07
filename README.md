@@ -1,19 +1,16 @@
 <div align="center">
-  <img src="src/main/resources/icons/app-icon.png" alt="ERONIX emergency room cross icon" width="136" height="136">
+  <img src="src/main/resources/icons/app-icon.png" alt="ERONIX emergency department icon" width="128" height="128">
 
   <h1>ERONIX</h1>
 
-  <p><strong>A live emergency department simulation for desktop and Android.</strong></p>
+  <p><strong>A live emergency-department simulation for desktop and Android.</strong></p>
 
   <p>
-    Follow patients from the waiting room to treatment with a real, concurrent
-    simulation engine—not a presentation-only animation.
-  </p>
-
-  <p>
-    <a href="https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest"><strong>Get ERONIX</strong></a>
+    <a href="https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/tag/v1.0.3"><strong>Download ERONIX v1.0.3</strong></a>
     &nbsp;·&nbsp;
-    <a href="#preview">See the dashboard</a>
+    <a href="#screenshots">Screenshots</a>
+    &nbsp;·&nbsp;
+    <a href="#how-it-works">How it works</a>
     &nbsp;·&nbsp;
     <a href="#build-from-source">Build from source</a>
   </p>
@@ -27,117 +24,121 @@
 
 ---
 
-## Preview
+## What is ERONIX?
+
+ERONIX is an educational emergency-department simulation. Configure a small
+department, start a live simulation, and follow patients as they arrive, wait
+for space, receive treatment, and leave.
+
+The project makes operating-systems concepts visible in a practical example:
+threads, synchronization, bounded buffers, semaphores, and coordination over
+shared resources. It is both a working simulation and a learning tool for
+students exploring concurrent programming.
+
+> **Scope:** ERONIX is an educational model, not a medical product. Its results
+> do not certify that a real hospital or emergency department is safe, staffed,
+> or operationally ready.
+
+## Screenshots
+
+<a id="screenshots"></a>
 
 <p align="center">
-  <img src="docs/screenshots/dashboard-preview.svg" alt="Illustrative ERONIX desktop dashboard preview" width="100%">
+  <img src="docs/screenshots/dashboard-preview.svg" alt="ERONIX desktop dashboard preview" width="100%">
 </p>
 
-<p align="center"><sub>Illustrative preview based on the real dashboard layout. Simulation data shown here is sample UI content.</sub></p>
+<p align="center"><sub>Illustrative dashboard preview. The displayed simulation values are sample UI content.</sub></p>
 
-## A real-time simulation, at a glance
+The desktop dashboard shows live patient statistics, waiting-room occupancy,
+doctor and treatment-room states, and a chronological event timeline. The
+Android companion organizes the same simulation into Home, Waiting, Team,
+Events, and Settings pages.
 
-ERONIX is a standalone JavaFX emergency-room simulation and a native Android
-companion app. Both interfaces are powered by the same Java simulation engine.
-The dashboard stays connected to the running simulation as patients arrive,
-wait for a bed, receive treatment, and leave.
+## Download ERONIX v1.0.3
 
-| Follow the flow | Manage the department | Understand the concurrency |
+Choose the file for your device. These are platform-specific installers; do not
+try to install a package on an unrelated operating system.
+
+| File | For | What it is and how to use it |
 |---|---|---|
-| Watch waiting-room occupancy, patients outside, treatment progress, and completed cases update live. | Configure patient volume, waiting-room capacity, doctors, treatment rooms, and arrival/treatment times. | Explore Java threads, bounded buffers, custom semaphores, and coordinated resource sharing. |
+| [**ERONIX.msi**](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/download/v1.0.3/ERONIX.msi) | Windows | Windows Installer package. Download and open it to install ERONIX. |
+| [**ERONIX.rpm**](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/download/v1.0.3/ERONIX.rpm) | Fedora and other RPM-based Linux | Native RPM package. On Fedora, install with `sudo dnf install ./ERONIX.rpm`. |
+| [**ERONIX.deb**](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/download/v1.0.3/ERONIX.deb) | Ubuntu, Debian, and other DEB-based Linux | Debian package. On Ubuntu/Debian, install with `sudo apt install ./ERONIX.deb`. |
+| [**ERONIX.apk**](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/download/v1.0.3/ERONIX.apk) | Android 14 (API 34) or newer | Android application package. Open it on the device and approve installation if Android asks. |
+| [Source code (ZIP)](https://github.com/EngOmarAbd-Elaziz/ERONIX/archive/refs/tags/v1.0.3.zip) | Developers | Compressed copy of the source at v1.0.3; it is not an installer. |
+| [Source code (tar.gz)](https://github.com/EngOmarAbd-Elaziz/ERONIX/archive/refs/tags/v1.0.3.tar.gz) | Developers | The same source snapshot in a tar archive; it is not an installer. |
 
-### Designed to be easy to follow
+The `.msi`, `.rpm`, and `.deb` files install the desktop application with its
+bundled Java runtime. Fedora users should use the RPM, not the DEB. The v1.0.3
+release does not include an AppImage.
 
-- **Live dashboard:** patient statistics, waiting-room seats, doctor and room
-  states, and a chronological event timeline.
-- **Adaptive Android app:** five focused pages—Home, Waiting, Team, Events,
-  and Settings—with portrait and landscape layouts.
-- **Light and dark themes:** switch the desktop theme while a simulation runs.
-- **One shared engine:** desktop and Android screens report the same simulation
-  state; the UI does not create its own fake activity.
-- **Ready-to-run releases:** desktop packages bundle a Java runtime. No Java,
-  Maven, or JavaFX installation is needed to launch them.
+For future releases, use **Check for updates** inside the app to open the
+release page when an update is available. The user confirms and installs the
+downloaded package; updates are not installed silently.
 
-## Downloads
+## How it works
 
-Get the latest release and choose the package for your device:
+The desktop and Android interfaces use the same Java simulation engine. The
+interface observes real engine state; it does not invent a separate animation
+of patients or doctors.
 
-| Platform | Download | Notes |
-|---|---|---|
-| **Windows** | [ERONIX-windows.msi](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-windows.msi) | Run the installer; later MSI releases upgrade the installed application. |
-| **Fedora / RPM-based Linux** | [ERONIX-linux.rpm](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.rpm) | Install with Software or `sudo dnf install ./ERONIX-linux.rpm`; later RPM releases upgrade it. |
-| **Debian / Ubuntu** | [ERONIX-linux.deb](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.deb) | Install with Software or `sudo apt install ./ERONIX-linux.deb`; later DEB releases upgrade it. |
-| **Other Linux distributions** | [ERONIX-linux-x86_64.AppImage](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux-x86_64.AppImage) | Make executable, then run it; no package installation required. |
-| **Android** | [ERONIX-android.apk](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-android.apk) | Android 14 (API 34) or newer. Allow installation from your selected source. |
+1. **Patients arrive** according to the configured arrival interval. Each
+   patient is represented by a worker thread.
+2. **The waiting room is a bounded buffer.** Its capacity is limited. Custom
+   `empty`, `full`, and `mutex` semaphores coordinate patients entering and
+   doctors taking patients; patients wait outside when it is full.
+3. **Doctors run concurrently.** A doctor takes a waiting patient and requests
+   a treatment room. If no room becomes available in time, the patient returns
+   to the waiting process.
+4. **Treatment rooms are shared resources.** A counting semaphore controls
+   access. When treatment finishes, the room is released for the next patient.
+5. **The dashboard receives snapshots and events** from the engine and updates
+   live statistics, staff and room states, and the event timeline.
 
-Use **Check for updates** inside the application to open the latest release when
-one is available. Windows and Linux installers use stable application/package
-identities so installing a newer release upgrades the existing installation.
-Fedora users should choose RPM; AppImage is a portable alternative for
-x86_64 Linux distributions. To run it, use `chmod +x ERONIX-linux-x86_64.AppImage`
-and then `./ERONIX-linux-x86_64.AppImage`. Some systems may require FUSE 2; if
-so, install the distribution's FUSE compatibility package or extract the
-AppImage with `--appimage-extract`.
-Android checks use the same release page; Android asks the user to confirm APK
-installation. Since older desktop releases were portable archives, their users
-must install the first MSI, RPM, or DEB release once and may then remove the
-extracted old copy. Older Android releases also require a one-time reinstall
-because they were not signed with a persistent key.
+### Configure a simulation
 
-The Android release workflow requires these GitHub Actions secrets:
-`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
-and `ANDROID_KEY_PASSWORD`. The keystore is used to sign every release APK and
-must be retained securely; replacing it prevents Android from applying updates
-over an already installed release. To create a new key, use `keytool -genkeypair
--v -keystore eronix-release.jks -alias eronix -keyalg RSA -keysize 2048
--validity 10000`, then store the keystore and its credentials securely and
-configure the four secrets in the repository's Actions settings. Never commit
-the keystore or passwords. Until these secrets are configured, a release still
-publishes its Windows and Linux installers, while the Android APK is skipped.
-Users of earlier APKs must uninstall and install the first permanently signed
-release once. Visit
-[all releases](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases) for version
-history and release notes.
+The desktop application supports 1–30 waiting seats, 1–20 doctors, 1–200
+patients, and 1–20 treatment rooms. Arrival intervals can be configured from
+0 to 60 seconds; treatment duration is 1–5 seconds. The Android app also
+provides configurable simulation settings, subject to its input controls.
+
+## Project structure
+
+| Path | Purpose |
+|---|---|
+| `src/main/java/hospital/simulation/` | Shared simulation engine, state, and events |
+| `src/main/java/hospital/ui/` | JavaFX desktop dashboard |
+| `src/main/resources/styles/` | Light and dark themes |
+| `android/` | Native Android application |
+| `scripts/` | Desktop packaging and shortcut scripts |
+| `.github/workflows/` | Android CI and multi-platform release builds |
+| `docs/screenshots/` | Dashboard preview used above |
 
 ## Build from source
 
-### Desktop application
+### Desktop
 
-**Requirements:** JDK 25 or newer and Maven 3.9 or newer.
+Requirements: JDK 25 or newer and Maven 3.9 or newer.
 
 ```bash
-# Run the JavaFX application
 mvn javafx:run
-
-# Run tests and verify the project
 mvn clean verify
 ```
 
-To package a self-contained application image, build on the target operating
-system. `jpackage` uses the JDK installed on that machine.
+Package on the target operating system:
 
 ```bash
-# Linux
+# Linux: set ERONIX_PACKAGE_TYPE to deb, rpm, or appimage as needed
 ./scripts/package-linux.sh
 
 # Windows PowerShell
 .\scripts\package-windows.ps1
 ```
 
-Linux packages are written to `dist/linux/packages/`; the Windows MSI is
-written to `dist/windows/installers/`. Set `ERONIX_VERSION` to a numeric dotted
-version (for example `1.2.0`) when building a release installer. Select Linux
-formats with `ERONIX_PACKAGE_TYPE=deb`, `rpm`, or `appimage`. AppImage builds
-also require `APPIMAGETOOL` and `APPIMAGE_RUNTIME_FILE` to point to the official
-AppImage packaging tool and type 2 runtime.
+### Android
 
-### Android application
-
-**Requirements:** Android Studio, Android SDK Platform 35, build tools 35.0.0,
-and JDK 17.
-
-Open the `android/` directory in Android Studio, or build and test from a
-terminal:
+Requirements: Android Studio, Android SDK Platform 35, build tools 35.0.0, and
+JDK 17.
 
 ```bash
 cd android
@@ -147,41 +148,13 @@ cd android
 The debug APK is written to
 `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-## What the simulation demonstrates
+## Credits
 
-- Each patient and doctor runs on its own Java thread.
-- The waiting room is a bounded buffer synchronized by custom `empty`, `full`,
-  and `mutex` semaphores. Patients wait outside when it is full; doctors block
-  when it is empty.
-- Treatment rooms are a separate shared resource managed by a custom counting
-  semaphore. If a room is unavailable, the patient returns to the waiting room.
-- Patients wait for treatment outcomes through notification rather than
-  busy-waiting. The coordinator joins worker threads before reporting
-  completion.
-- Simulation callbacks update JavaFX on the JavaFX Application Thread.
+ERONIX is an individual project by **Eng. Omar Abdelaziz**.
 
-The interface supports configurable waiting-room capacity (1–30), doctors
-(1–20), patients (1–200), and treatment rooms (1–20). Treatment times are
-constrained to 1–5 seconds.
-
-## Project layout
-
-| Path | Purpose |
-|---|---|
-| `src/main/java/hospital/simulation/` | Shared simulation engine, state, and events |
-| `src/main/java/hospital/ui/` | JavaFX desktop dashboard |
-| `src/main/resources/styles/` | Light and dark themes |
-| `src/main/resources/icons/` | Application icon |
-| `android/` | Native Android app and Gradle wrapper |
-| `scripts/` | Native desktop packaging and shortcut scripts |
-| `.github/workflows/` | Android CI and tagged multi-platform release builds |
-| `docs/screenshots/` | README dashboard preview |
-
-## License and credits
-
-ERONIX is an individual project by [Eng. Omar Abdelaziz](https://engomarabd-elaziz.github.io/My-Portofolio/).
-The desktop and Android apps link to the project owner's portfolio.
+- Portfolio: [engomarabd-elaziz.github.io/My-Portofolio](https://engomarabd-elaziz.github.io/My-Portofolio/)
+- Repository: [EngOmarAbd-Elaziz/ERONIX](https://github.com/EngOmarAbd-Elaziz/ERONIX)
 
 ---
 
-<p align="center"><sub>Built to make operating systems concepts visible, measurable, and a little more human.</sub></p>
+<p align="center"><sub>Built to make operating-systems concepts visible, measurable, and a little more human.</sub></p>
