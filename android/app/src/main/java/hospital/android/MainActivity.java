@@ -29,6 +29,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import hospital.update.UpdateChecker;
 import hospital.simulation.SimulationConfig;
 import hospital.simulation.SimulationController;
 import hospital.simulation.SimulationEvent;
@@ -39,6 +40,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
 
 import static hospital.simulation.SimulationSnapshot.DoctorStatus;
 import static hospital.simulation.SimulationSnapshot.RoomStatus;
@@ -406,7 +408,54 @@ public final class MainActivity extends Activity {
         startButton.setOnClickListener(view -> startSimulation());
         stopButton.setOnClickListener(view -> stopSimulation());
         resetButton.setOnClickListener(view -> resetSimulation());
+        Button updateButton = button("Check for updates", palette, false);
+        LinearLayout.LayoutParams updateParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
+        updateParams.topMargin = dp(8);
+        card.addView(updateButton, updateParams);
+        updateButton.setOnClickListener(view -> checkForUpdates(updateButton));
         addCard(card);
+    }
+
+    private void checkForUpdates(Button button) {
+        button.setEnabled(false);
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                return UpdateChecker.checkLatest(BuildConfig.VERSION_NAME);
+            } catch (Exception exception) {
+                throw new java.util.concurrent.CompletionException(exception);
+            }
+        }).whenComplete((result, failure) -> runOnUiThread(() -> {
+            button.setEnabled(true);
+            if (isFinishing() || isDestroyed()) {
+                return;
+            }
+            if (failure != null) {
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("ERONIX updates")
+                        .setMessage("Could not check for updates. Check your internet connection and try again.")
+                        .setPositiveButton("OK", null)
+                        .show();
+            } else if (result.updateAvailable()) {
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("ERONIX updates")
+                        .setMessage("Version " + result.latestVersion()
+                                + " is available. Open the release page to download and install it.")
+                        .setNegativeButton("Cancel", null)
+                        .setPositiveButton("Open releases", (dialog, which) -> {
+                            Intent intent = new Intent(
+                                    Intent.ACTION_VIEW, Uri.parse(result.releaseUrl()));
+                            startActivity(intent);
+                        })
+                        .show();
+            } else {
+                new android.app.AlertDialog.Builder(this)
+                        .setTitle("ERONIX updates")
+                        .setMessage("You are using the latest version.")
+                        .setPositiveButton("OK", null)
+                        .show();
+            }
+        }));
     }
 
     private void buildStatisticsCard(Palette palette) {

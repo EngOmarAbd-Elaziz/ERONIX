@@ -5,6 +5,7 @@ import hospital.simulation.SimulationController;
 import hospital.simulation.SimulationEvent;
 import hospital.simulation.SimulationObserver;
 import hospital.simulation.SimulationSnapshot;
+import hospital.update.UpdateChecker;
 import javafx.animation.AnimationTimer;
 import javafx.animation.FadeTransition;
 import javafx.application.Application;
@@ -18,6 +19,7 @@ import javafx.geometry.Pos;
 import javafx.util.Duration;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -45,6 +47,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 import static hospital.simulation.SimulationSnapshot.DoctorStatus;
 import static hospital.simulation.SimulationSnapshot.EventCategory;
@@ -203,9 +206,49 @@ public final class HospitalApp extends Application {
         fullScreenButton.setTooltip(new javafx.scene.control.Tooltip(t("fullscreen.tooltip")));
         fullScreenButton.setOnAction(event ->
                 stage.setFullScreen(!stage.isFullScreen()));
+        Button updateButton = new Button(t("button.updates"));
+        updateButton.getStyleClass().add("quiet-button");
+        updateButton.setOnAction(event -> checkForUpdates(updateButton));
         header.getChildren().addAll(
-                mark, titleBlock, spacer, statusBadge, themeButton, fullScreenButton);
+                mark, titleBlock, spacer, statusBadge, updateButton, themeButton, fullScreenButton);
         return header;
+    }
+
+    private void checkForUpdates(Button button) {
+        button.setDisable(true);
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                String version = System.getProperty("eronix.version", "1.0.0");
+                return UpdateChecker.checkLatest(version);
+            } catch (Exception exception) {
+                throw new java.util.concurrent.CompletionException(exception);
+            }
+        }).whenComplete((result, failure) -> Platform.runLater(() -> {
+            button.setDisable(false);
+            if (failure != null) {
+                showUpdateMessage(Alert.AlertType.ERROR, t("updates.error"));
+            } else if (result.updateAvailable()) {
+                Alert alert = new Alert(Alert.AlertType.INFORMATION);
+                alert.setTitle(t("updates.title"));
+                alert.setHeaderText(t("updates.available") + " " + result.latestVersion());
+                alert.setContentText(t("updates.open"));
+                alert.getButtonTypes().setAll(
+                        new javafx.scene.control.ButtonType(t("updates.download")),
+                        javafx.scene.control.ButtonType.CANCEL);
+                alert.showAndWait().filter(buttonType ->
+                        buttonType.getText().equals(t("updates.download")))
+                        .ifPresent(buttonType -> getHostServices().showDocument(result.releaseUrl()));
+            } else {
+                showUpdateMessage(Alert.AlertType.INFORMATION, t("updates.current"));
+            }
+        }));
+    }
+
+    private void showUpdateMessage(Alert.AlertType type, String message) {
+        Alert alert = new Alert(type, message);
+        alert.setTitle(t("updates.title"));
+        alert.setHeaderText(null);
+        alert.showAndWait();
     }
 
     private HBox createCopyrightFooter() {

@@ -65,13 +65,33 @@ Get the latest release and choose the package for your device:
 
 | Platform | Download | Notes |
 |---|---|---|
-| **Windows** | [ERONIX-windows.zip](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-windows.zip) | Extract, then launch `ERONIX/ERONIX.exe`. |
-| **Linux x86_64** | [ERONIX-linux.tar.gz](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.tar.gz) | Extract, then launch `ERONIX/bin/ERONIX`. |
+| **Windows** | [ERONIX-windows.msi](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-windows.msi) | Run the installer; later MSI releases upgrade the installed application. |
+| **Linux x86_64** | [ERONIX-linux.deb](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.deb) | Install the Debian package; later package releases upgrade it. |
 | **Android** | [ERONIX-android.apk](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-android.apk) | Android 14 (API 34) or newer. Allow installation from your selected source. |
 
-On desktop, run the included `create-desktop-shortcut` script if you want an
-ERONIX shortcut. Visit [all releases](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases)
-for version history and release notes.
+Use **Check for updates** inside the application to open the latest release when
+one is available. Windows and Linux installers use stable application/package
+identities so installing a newer release upgrades the existing installation.
+Android checks use the same release page; Android asks the user to confirm APK
+installation. Since older desktop releases were portable archives, their users
+must install the first MSI/DEB release once and may then remove the extracted
+old copy. Older Android releases also require a one-time reinstall because they
+were not signed with a persistent key.
+
+The Android release workflow requires these GitHub Actions secrets:
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
+and `ANDROID_KEY_PASSWORD`. The keystore is used to sign every release APK and
+must be retained securely; replacing it prevents Android from applying updates
+over an already installed release. To create a new key, use `keytool -genkeypair
+-v -keystore eronix-release.jks -alias eronix -keyalg RSA -keysize 2048
+-validity 10000`, then store the keystore and its credentials securely and
+configure the four secrets in the repository's Actions settings. Never commit
+the keystore or passwords. Until these secrets are configured, a release still
+publishes its Windows and Linux installers, while the Android APK is skipped.
+Users of earlier APKs must uninstall and install the first permanently signed
+release once. Visit
+[all releases](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases) for version
+history and release notes.
 
 ## Build from source
 
@@ -98,8 +118,11 @@ system. `jpackage` uses the JDK installed on that machine.
 .\scripts\package-windows.ps1
 ```
 
-The application image is written to `dist/linux/ERONIX/` or
-`dist/windows/ERONIX/`, respectively.
+The Debian package is written to `dist/linux/packages/`; the Windows MSI is
+written to `dist/windows/installers/`. Set `ERONIX_VERSION` to a numeric dotted
+version (for example `1.2.0`) when building a release installer. On Fedora-like
+systems, set `ERONIX_PACKAGE_TYPE=rpm` to build an RPM instead of the default
+Debian package.
 
 ### Android application
 
