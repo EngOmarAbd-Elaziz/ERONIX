@@ -10,6 +10,8 @@ APP_NAME="ERONIX"
 APP_VERSION="${ERONIX_VERSION:-1.0.0}"
 PACKAGE_TYPE="${ERONIX_PACKAGE_TYPE:-}"
 APP_JAR="emergency-room-simulation-$APP_VERSION.jar"
+APPIMAGE_TOOL="${APPIMAGETOOL:-}"
+APPIMAGE_RUNTIME="${APPIMAGE_RUNTIME_FILE:-}"
 JAVA_HOME_RESOLVED="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")}"
 
 command -v mvn >/dev/null || { echo "Maven is required." >&2; exit 1; }
@@ -35,8 +37,19 @@ case "$PACKAGE_TYPE" in
     command -v rpmbuild >/dev/null || { echo "rpmbuild is required to build an RPM package." >&2; exit 1; }
     PACKAGE_ARGUMENTS=(--type rpm --linux-package-name "eronix" --linux-app-category "Utility")
     ;;
+  appimage)
+    [[ -x "$APPIMAGE_TOOL" ]] || {
+      echo "Set APPIMAGETOOL to the executable appimagetool binary." >&2
+      exit 1
+    }
+    [[ -f "$APPIMAGE_RUNTIME" ]] || {
+      echo "Set APPIMAGE_RUNTIME_FILE to the AppImage type 2 runtime." >&2
+      exit 1
+    }
+    PACKAGE_ARGUMENTS=(--type app-image)
+    ;;
   *)
-    echo "ERONIX_PACKAGE_TYPE must be deb or rpm." >&2
+    echo "ERONIX_PACKAGE_TYPE must be deb, rpm, or appimage." >&2
     exit 1
     ;;
 esac
@@ -48,6 +61,63 @@ mvn --no-transfer-progress clean package org.apache.maven.plugins:maven-dependen
 
 cp "$ROOT/target/$APP_JAR" "$INPUT/$APP_JAR"
 mkdir -p "$OUTPUT"
+
+if [[ "$PACKAGE_TYPE" == "appimage" ]]; then
+  APPIMAGE_STAGE="$ROOT/target/appimage-stage"
+  APPIMAGE_DIR="$ROOT/target/ERONIX.AppDir"
+  if [[ -n "${ERONIX_RUNTIME_IMAGE:-}" ]]; then
+    jpackage \
+      "${PACKAGE_ARGUMENTS[@]}" \
+      --name "$APP_NAME" \
+      --app-version "$APP_VERSION" \
+      --vendor "ERONIX" \
+      --runtime-image "$ERONIX_RUNTIME_IMAGE" \
+      --input "$INPUT" \
+      --main-jar "$APP_JAR" \
+      --main-class hospital.ui.HospitalLauncher \
+      --java-options "--enable-native-access=ALL-UNNAMED" \
+      --java-options "-Deronix.version=$APP_VERSION" \
+      --icon "$ROOT/src/main/resources/icons/app-icon.png" \
+      --dest "$APPIMAGE_STAGE"
+  else
+    jpackage \
+      "${PACKAGE_ARGUMENTS[@]}" \
+      --name "$APP_NAME" \
+      --app-version "$APP_VERSION" \
+      --vendor "ERONIX" \
+      --module-path "$INPUT" \
+      --module hospital.emergency.room.simulation/hospital.ui.HospitalApp \
+      --add-modules javafx.controls \
+      --java-options "--enable-native-access=javafx.graphics" \
+      --java-options "-Deronix.version=$APP_VERSION" \
+      --icon "$ROOT/src/main/resources/icons/app-icon.png" \
+      --dest "$APPIMAGE_STAGE"
+  fi
+
+  mkdir -p "$APPIMAGE_DIR"
+  cp -a "$APPIMAGE_STAGE/$APP_NAME/." "$APPIMAGE_DIR/"
+  cp "$ROOT/src/main/resources/icons/app-icon.png" "$APPIMAGE_DIR/eronix.png"
+  cat > "$APPIMAGE_DIR/ERONIX.desktop" <<'DESKTOP'
+[Desktop Entry]
+Name=ERONIX
+Exec=AppRun
+Icon=eronix
+Type=Application
+Categories=Education;
+Terminal=false
+DESKTOP
+  cat > "$APPIMAGE_DIR/AppRun" <<'APPRUN'
+#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/bin/ERONIX" "$@"
+APPRUN
+  chmod +x "$APPIMAGE_DIR/AppRun"
+  ARCH=x86_64 VERSION="$APP_VERSION" APPIMAGE_EXTRACT_AND_RUN=1 \
+    "$APPIMAGE_TOOL" --runtime-file "$APPIMAGE_RUNTIME" \
+    "$APPIMAGE_DIR" "$OUTPUT/ERONIX-linux-x86_64.AppImage"
+  echo "Linux AppImage created at $OUTPUT/ERONIX-linux-x86_64.AppImage"
+  exit 0
+fi
 
 if [[ -d "$JAVA_HOME_RESOLVED/jmods" ]]; then
   jpackage \

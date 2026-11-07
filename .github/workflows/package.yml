@@ -12,7 +12,7 @@ permissions:
 jobs:
   package-linux:
     name: Package Linux application
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -23,7 +23,7 @@ jobs:
       - name: Install Debian packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot
+          sudo apt-get install -y fakeroot rpm
       - name: Set release version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -39,8 +39,45 @@ jobs:
         run: cp dist/linux/packages/*.deb "$RUNNER_TEMP/ERONIX-linux.deb"
       - uses: actions/upload-artifact@v4
         with:
-          name: ERONIX-linux
+          name: ERONIX-linux-deb
           path: ${{ runner.temp }}/ERONIX-linux.deb
+          if-no-files-found: error
+      - name: Build Fedora RPM
+        env:
+          ERONIX_PACKAGE_TYPE: rpm
+        run: bash scripts/package-linux.sh
+      - name: Stage Fedora RPM
+        run: cp dist/linux/packages/*.rpm "$RUNNER_TEMP/ERONIX-linux.rpm"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ERONIX-linux-rpm
+          path: ${{ runner.temp }}/ERONIX-linux.rpm
+          if-no-files-found: error
+      - name: Download AppImage packaging tool
+        run: |
+          curl --fail --location --retry 3 \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage \
+            --output "$RUNNER_TEMP/appimagetool.AppImage"
+          echo "e8c1169c4af66c3184d7ee110713d4be04befe671fa358e2c1591ee840553b03  $RUNNER_TEMP/appimagetool.AppImage" \
+            | sha256sum --check
+          chmod +x "$RUNNER_TEMP/appimagetool.AppImage"
+          curl --fail --location --retry 3 \
+            https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64 \
+            --output "$RUNNER_TEMP/appimage-runtime-x86_64"
+          echo "617aa77314d57c8b8e4fae9c3f0b35af7b30d5529cb69e98f64f92510ed98a46  $RUNNER_TEMP/appimage-runtime-x86_64" \
+            | sha256sum --check
+      - name: Build Linux AppImage
+        env:
+          ERONIX_PACKAGE_TYPE: appimage
+          APPIMAGETOOL: ${{ runner.temp }}/appimagetool.AppImage
+          APPIMAGE_RUNTIME_FILE: ${{ runner.temp }}/appimage-runtime-x86_64
+        run: bash scripts/package-linux.sh
+      - name: Stage Linux AppImage
+        run: cp dist/linux/packages/ERONIX-linux-x86_64.AppImage "$RUNNER_TEMP/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ERONIX-linux-appimage
+          path: ${{ runner.temp }}/ERONIX-linux-x86_64.AppImage
           if-no-files-found: error
 
   package-windows:

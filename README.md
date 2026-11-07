@@ -65,17 +65,24 @@ Get the latest release and choose the package for your device:
 | Platform | Download | Notes |
 |---|---|---|
 | **Windows** | [ERONIX-windows.msi](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-windows.msi) | Run the installer; later MSI releases upgrade the installed application. |
-| **Linux x86_64** | [ERONIX-linux.deb](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.deb) | Install the Debian package; later package releases upgrade it. |
+| **Fedora / RPM-based Linux** | [ERONIX-linux.rpm](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.rpm) | Install with Software or `sudo dnf install ./ERONIX-linux.rpm`; later RPM releases upgrade it. |
+| **Debian / Ubuntu** | [ERONIX-linux.deb](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux.deb) | Install with Software or `sudo apt install ./ERONIX-linux.deb`; later DEB releases upgrade it. |
+| **Other Linux distributions** | [ERONIX-linux-x86_64.AppImage](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-linux-x86_64.AppImage) | Make executable, then run it; no package installation required. |
 | **Android** | [ERONIX-android.apk](https://github.com/EngOmarAbd-Elaziz/ERONIX/releases/latest/download/ERONIX-android.apk) | Android 14 (API 34) or newer. Allow installation from your selected source. |
 
 Use **Check for updates** inside the application to open the latest release when
 one is available. Windows and Linux installers use stable application/package
 identities so installing a newer release upgrades the existing installation.
+Fedora users should choose RPM; AppImage is a portable alternative for
+x86_64 Linux distributions. To run it, use `chmod +x ERONIX-linux-x86_64.AppImage`
+and then `./ERONIX-linux-x86_64.AppImage`. Some systems may require FUSE 2; if
+so, install the distribution's FUSE compatibility package or extract the
+AppImage with `--appimage-extract`.
 Android checks use the same release page; Android asks the user to confirm APK
 installation. Since older desktop releases were portable archives, their users
-must install the first MSI/DEB release once and may then remove the extracted
-old copy. Older Android releases also require a one-time reinstall because they
-were not signed with a persistent key.
+must install the first MSI, RPM, or DEB release once and may then remove the
+extracted old copy. Older Android releases also require a one-time reinstall
+because they were not signed with a persistent key.
 
 The Android release workflow requires these GitHub Actions secrets:
 `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
@@ -117,11 +124,12 @@ system. `jpackage` uses the JDK installed on that machine.
 .\scripts\package-windows.ps1
 ```
 
-The Debian package is written to `dist/linux/packages/`; the Windows MSI is
+Linux packages are written to `dist/linux/packages/`; the Windows MSI is
 written to `dist/windows/installers/`. Set `ERONIX_VERSION` to a numeric dotted
-version (for example `1.2.0`) when building a release installer. On Fedora-like
-systems, set `ERONIX_PACKAGE_TYPE=rpm` to build an RPM instead of the default
-Debian package.
+version (for example `1.2.0`) when building a release installer. Select Linux
+formats with `ERONIX_PACKAGE_TYPE=deb`, `rpm`, or `appimage`. AppImage builds
+also require `APPIMAGETOOL` and `APPIMAGE_RUNTIME_FILE` to point to the official
+AppImage packaging tool and type 2 runtime.
 
 ### Android application
 
