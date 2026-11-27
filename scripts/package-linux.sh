@@ -13,6 +13,10 @@ APP_JAR="emergency-room-simulation-$APP_VERSION.jar"
 APPIMAGE_TOOL="${APPIMAGETOOL:-}"
 APPIMAGE_RUNTIME="${APPIMAGE_RUNTIME_FILE:-}"
 JAVA_HOME_RESOLVED="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")}"
+RUNTIME_IMAGE="${ERONIX_RUNTIME_IMAGE:-}"
+if [[ -z "$RUNTIME_IMAGE" && ! -d "$JAVA_HOME_RESOLVED/jmods" ]]; then
+  RUNTIME_IMAGE="$JAVA_HOME_RESOLVED"
+fi
 
 command -v mvn >/dev/null || { echo "Maven is required." >&2; exit 1; }
 command -v jpackage >/dev/null || { echo "JDK 25+ with jpackage is required." >&2; exit 1; }
@@ -54,24 +58,27 @@ case "$PACKAGE_TYPE" in
     ;;
 esac
 
+BUILD_OUTPUT="$ROOT/target/linux-packages/$PACKAGE_TYPE"
+
 mvn --no-transfer-progress clean package org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies \
   -Drevision="$APP_VERSION" \
   -DincludeScope=runtime \
   -DoutputDirectory="$INPUT"
 
 cp "$ROOT/target/$APP_JAR" "$INPUT/$APP_JAR"
-mkdir -p "$OUTPUT"
+mkdir -p "$OUTPUT" "$BUILD_OUTPUT"
+find "$BUILD_OUTPUT" -maxdepth 1 -type f -delete
 
 if [[ "$PACKAGE_TYPE" == "appimage" ]]; then
   APPIMAGE_STAGE="$ROOT/target/appimage-stage"
   APPIMAGE_DIR="$ROOT/target/ERONIX.AppDir"
-  if [[ -n "${ERONIX_RUNTIME_IMAGE:-}" ]]; then
+  if [[ -n "$RUNTIME_IMAGE" ]]; then
     jpackage \
       "${PACKAGE_ARGUMENTS[@]}" \
       --name "$APP_NAME" \
       --app-version "$APP_VERSION" \
       --vendor "ERONIX" \
-      --runtime-image "$ERONIX_RUNTIME_IMAGE" \
+      --runtime-image "$RUNTIME_IMAGE" \
       --input "$INPUT" \
       --main-jar "$APP_JAR" \
       --main-class hospital.ui.HospitalLauncher \
@@ -112,14 +119,46 @@ HERE="$(dirname "$(readlink -f "$0")")"
 exec "$HERE/bin/ERONIX" "$@"
 APPRUN
   chmod +x "$APPIMAGE_DIR/AppRun"
+  [[ -x "$APPIMAGE_DIR/lib/runtime/bin/java" ]] || {
+    echo "The AppImage staging directory does not contain its Java runtime." >&2
+    exit 1
+  }
+  grep -Fxq "app.classpath=\$APPDIR/$APP_JAR" "$APPIMAGE_DIR/lib/app/ERONIX.cfg" || {
+    echo "The AppImage staging directory does not contain the expected $APP_JAR." >&2
+    exit 1
+  }
+  grep -Fxq "java-options=-Djpackage.app-version=$APP_VERSION" "$APPIMAGE_DIR/lib/app/ERONIX.cfg" || {
+    echo "The AppImage staging directory does not report version $APP_VERSION." >&2
+    exit 1
+  }
   ARCH=x86_64 VERSION="$APP_VERSION" APPIMAGE_EXTRACT_AND_RUN=1 \
     "$APPIMAGE_TOOL" --runtime-file "$APPIMAGE_RUNTIME" \
-    "$APPIMAGE_DIR" "$OUTPUT/ERONIX-linux-x86_64.AppImage"
+    "$APPIMAGE_DIR" "$BUILD_OUTPUT/ERONIX-linux-x86_64.AppImage"
+  [[ -s "$BUILD_OUTPUT/ERONIX-linux-x86_64.AppImage" ]] || {
+    echo "The AppImage build did not produce an output file." >&2
+    exit 1
+  }
+  find "$OUTPUT" -maxdepth 1 -type f -name 'ERONIX-linux-x86_64.AppImage' -delete
+  cp "$BUILD_OUTPUT/ERONIX-linux-x86_64.AppImage" "$OUTPUT/ERONIX-linux-x86_64.AppImage"
   echo "Linux AppImage created at $OUTPUT/ERONIX-linux-x86_64.AppImage"
   exit 0
 fi
 
-if [[ -d "$JAVA_HOME_RESOLVED/jmods" ]]; then
+if [[ -n "$RUNTIME_IMAGE" ]]; then
+  jpackage \
+    "${PACKAGE_ARGUMENTS[@]}" \
+    --name "$APP_NAME" \
+    --app-version "$APP_VERSION" \
+    --vendor "ERONIX" \
+    --runtime-image "$RUNTIME_IMAGE" \
+    --input "$INPUT" \
+    --main-jar "$APP_JAR" \
+    --main-class hospital.ui.HospitalLauncher \
+    --java-options "--enable-native-access=ALL-UNNAMED" \
+    --java-options "-Deronix.version=$APP_VERSION" \
+    --icon "$ROOT/src/main/resources/icons/app-icon.png" \
+    --dest "$BUILD_OUTPUT"
+elif [[ -d "$JAVA_HOME_RESOLVED/jmods" ]]; then
   jpackage \
     "${PACKAGE_ARGUMENTS[@]}" \
     --name "$APP_NAME" \
@@ -131,7 +170,7 @@ if [[ -d "$JAVA_HOME_RESOLVED/jmods" ]]; then
     --java-options "--enable-native-access=javafx.graphics" \
     --java-options "-Deronix.version=$APP_VERSION" \
     --icon "$ROOT/src/main/resources/icons/app-icon.png" \
-    --dest "$OUTPUT"
+    --dest "$BUILD_OUTPUT"
 else
   jpackage \
     "${PACKAGE_ARGUMENTS[@]}" \
@@ -145,7 +184,46 @@ else
     --java-options "--enable-native-access=ALL-UNNAMED" \
     --java-options "-Deronix.version=$APP_VERSION" \
     --icon "$ROOT/src/main/resources/icons/app-icon.png" \
-    --dest "$OUTPUT"
+    --dest "$BUILD_OUTPUT"
 fi
+
+case "$PACKAGE_TYPE" in
+  deb)
+    mapfile -t BUILT_PACKAGES < <(find "$BUILD_OUTPUT" -maxdepth 1 -type f -name 'eronix_*.deb' -print)
+    [[ ${#BUILT_PACKAGES[@]} -eq 1 ]] || {
+      echo "Expected exactly one Debian package in $BUILD_OUTPUT." >&2
+      exit 1
+    }
+    dpkg-deb --contents "${BUILT_PACKAGES[0]}" > "$BUILD_OUTPUT/package-files.txt"
+    grep -q '/lib/runtime/bin/java$' "$BUILD_OUTPUT/package-files.txt" || {
+      echo "The Debian package does not contain its Java runtime." >&2
+      exit 1
+    }
+    [[ "$(dpkg-deb -f "${BUILT_PACKAGES[0]}" Version)" == "$APP_VERSION" ]] || {
+      echo "The Debian package version does not match $APP_VERSION." >&2
+      exit 1
+    }
+    find "$OUTPUT" -maxdepth 1 -type f -name 'eronix_*.deb' -delete
+    cp "${BUILT_PACKAGES[0]}" "$OUTPUT/"
+    ;;
+  rpm)
+    mapfile -t BUILT_PACKAGES < <(find "$BUILD_OUTPUT" -maxdepth 1 -type f -name 'eronix-*.rpm' -print)
+    [[ ${#BUILT_PACKAGES[@]} -eq 1 ]] || {
+      echo "Expected exactly one RPM package in $BUILD_OUTPUT." >&2
+      exit 1
+    }
+    rpm -qpl "${BUILT_PACKAGES[0]}" > "$BUILD_OUTPUT/package-files.txt"
+    grep -q '/lib/runtime/bin/java$' "$BUILD_OUTPUT/package-files.txt" || {
+      echo "The RPM package does not contain its Java runtime." >&2
+      exit 1
+    }
+    [[ "$(rpm -qp --qf '%{VERSION}' "${BUILT_PACKAGES[0]}")" == "$APP_VERSION" ]] || {
+      echo "The RPM package version does not match $APP_VERSION." >&2
+      exit 1
+    }
+    find "$OUTPUT" -maxdepth 1 -type f -name 'eronix-*.rpm' -delete
+    cp "${BUILT_PACKAGES[0]}" "$OUTPUT/"
+    ;;
+esac
 
 echo "Linux $PACKAGE_TYPE installer created in $OUTPUT for version $APP_VERSION"

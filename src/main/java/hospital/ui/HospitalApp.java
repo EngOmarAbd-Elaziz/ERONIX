@@ -497,7 +497,7 @@ public final class HospitalApp extends Application {
         button.setDisable(true);
         CompletableFuture.supplyAsync(() -> {
             try {
-                String version = System.getProperty("eronix.version", "1.0.0");
+                String version = System.getProperty("eronix.version", "1.0.6");
                 return UpdateChecker.checkLatest(version);
             } catch (Exception exception) {
                 throw new java.util.concurrent.CompletionException(exception);
