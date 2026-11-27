@@ -73,9 +73,12 @@ class SimulationReportTest {
 
         assertTrue(entries.contains("[Content_Types].xml"));
         assertTrue(entries.contains("_rels/.rels"));
+        assertTrue(entries.contains("word/media/outcomes.png"));
+        assertTrue(entries.contains("word/media/histogram.png"));
         assertTrue(document != null && document.contains("ERONIX Simulation Report"));
         assertTrue(document.contains("Patient outcomes"));
         assertTrue(document.contains("Treatment duration histogram"));
+        assertTrue(document.contains("<w:drawing>"));
         assertTrue(document.contains("100.0%"));
         DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(
                 new ByteArrayInputStream(document.getBytes(java.nio.charset.StandardCharsets.UTF_8)));

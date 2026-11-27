@@ -16,8 +16,8 @@ android {
         applicationId "hospital.eronix"
         minSdk 34
         targetSdk 34
-        versionCode = (System.getenv("ERONIX_VERSION_CODE") ?: "5").toInteger()
-        versionName = (System.getenv("ERONIX_VERSION_NAME") ?: "1.0.5")
+        versionCode = (System.getenv("ERONIX_VERSION_CODE") ?: "6").toInteger()
+        versionName = (System.getenv("ERONIX_VERSION_NAME") ?: "1.0.6")
     }
 
     signingConfigs {
@@ -68,5 +68,6 @@ tasks.configureEach { task ->
 }
 
 dependencies {
+    implementation "androidx.core:core:1.13.1"
     testImplementation "junit:junit:4.13.2"
 }

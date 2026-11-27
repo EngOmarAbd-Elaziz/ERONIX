@@ -6,7 +6,7 @@
   ### Real-Time Emergency Department Simulation Engine
 
   <p align="center">
-    <img src="https://img.shields.io/badge/release-v1.0.5-0052CC?style=for-the-badge&logo=github&logoColor=white" alt="Version 1.0.5" />
+    <img src="https://img.shields.io/badge/release-v1.0.6-0052CC?style=for-the-badge&logo=github&logoColor=white" alt="Version 1.0.6" />
     <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android-4E5D6C?style=for-the-badge" alt="Platforms" />
     <img src="https://img.shields.io/badge/Java-25-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" alt="Java 25" />
     <img src="https://img.shields.io/badge/JavaFX-Desktop-007396?style=for-the-badge&logo=java&logoColor=white" alt="JavaFX" />
@@ -54,7 +54,7 @@ Whether you are exploring multi-threaded synchronization or observing how patien
 
 ---
 
-## 📦 Downloads (v1.0.5 Releases)
+## 📦 Downloads (v1.0.6 Releases)
 
 Select the package corresponding to your operating system:
 
