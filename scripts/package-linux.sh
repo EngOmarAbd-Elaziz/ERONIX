@@ -85,11 +85,18 @@ if [[ "$USE_MODULE_PACKAGING" == true ]]; then
     --module-path "$MODULE_PATH" \
     --add-modules javafx.controls \
     --bind-services \
-    --strip-native-commands \
     --strip-debug \
     --no-man-pages \
     --no-header-files \
     --output "$RUNTIME_IMAGE"
+  [[ -x "$RUNTIME_IMAGE/bin/java" ]] || {
+    echo "jlink did not produce a runnable Java runtime." >&2
+    exit 1
+  }
+  "$RUNTIME_IMAGE/bin/java" --list-modules | grep -q '^javafx.controls@' || {
+    echo "The generated Java runtime does not include JavaFX controls." >&2
+    exit 1
+  }
 fi
 
 if [[ "$PACKAGE_TYPE" == "appimage" ]]; then
@@ -146,10 +153,18 @@ APPRUN
     echo "The AppImage staging directory does not contain its Java runtime." >&2
     exit 1
   }
-  grep -Fxq "app.classpath=\$APPDIR/$APP_JAR" "$APPIMAGE_DIR/lib/app/ERONIX.cfg" || {
-    echo "The AppImage staging directory does not contain the expected $APP_JAR." >&2
-    exit 1
-  }
+  if [[ "$USE_MODULE_PACKAGING" == true ]]; then
+    grep -Fxq "app.mainmodule=hospital.emergency.room.simulation/hospital.ui.HospitalApp" \
+      "$APPIMAGE_DIR/lib/app/ERONIX.cfg" || {
+      echo "The AppImage staging directory does not contain the ERONIX main module." >&2
+      exit 1
+    }
+  else
+    grep -Fxq "app.classpath=\$APPDIR/$APP_JAR" "$APPIMAGE_DIR/lib/app/ERONIX.cfg" || {
+      echo "The AppImage staging directory does not contain the expected $APP_JAR." >&2
+      exit 1
+    }
+  fi
   grep -Fxq "java-options=-Djpackage.app-version=$APP_VERSION" "$APPIMAGE_DIR/lib/app/ERONIX.cfg" || {
     echo "The AppImage staging directory does not report version $APP_VERSION." >&2
     exit 1
@@ -204,10 +219,10 @@ case "$PACKAGE_TYPE" in
       exit 1
     }
     dpkg-deb --contents "${BUILT_PACKAGES[0]}" > "$BUILD_OUTPUT/package-files.txt"
-    grep -q '/lib/runtime/bin/java$' "$BUILD_OUTPUT/package-files.txt" || {
+    if ! grep -q '/lib/runtime/bin/java$' "$BUILD_OUTPUT/package-files.txt"; then
       echo "The Debian package does not contain its Java runtime." >&2
       exit 1
-    }
+    fi
     [[ "$(dpkg-deb -f "${BUILT_PACKAGES[0]}" Version)" == "$APP_VERSION" ]] || {
       echo "The Debian package version does not match $APP_VERSION." >&2
       exit 1
@@ -222,10 +237,10 @@ case "$PACKAGE_TYPE" in
       exit 1
     }
     rpm -qpl "${BUILT_PACKAGES[0]}" > "$BUILD_OUTPUT/package-files.txt"
-    grep -q '/lib/runtime/bin/java$' "$BUILD_OUTPUT/package-files.txt" || {
+    if ! grep -q '/lib/runtime/bin/java$' "$BUILD_OUTPUT/package-files.txt"; then
       echo "The RPM package does not contain its Java runtime." >&2
       exit 1
-    }
+    fi
     [[ "$(rpm -qp --qf '%{VERSION}' "${BUILT_PACKAGES[0]}")" == "$APP_VERSION" ]] || {
       echo "The RPM package version does not match $APP_VERSION." >&2
       exit 1
