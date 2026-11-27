@@ -16,6 +16,15 @@ RUNTIME_IMAGE="${ERONIX_RUNTIME_IMAGE:-}"
 
 command -v mvn >/dev/null || { echo "Maven is required." >&2; exit 1; }
 command -v jpackage >/dev/null || { echo "JDK 25+ with jpackage is required." >&2; exit 1; }
+JAVA_HOME_RESOLVED="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(command -v jpackage)")")")}"
+MODULE_PATH="$INPUT"
+if [[ -z "$RUNTIME_IMAGE" ]]; then
+  [[ -d "$JAVA_HOME_RESOLVED/jmods" ]] || {
+    echo "JDK module files are required to build a bundled runtime. Use a JDK package that includes jmods." >&2
+    exit 1
+  }
+  MODULE_PATH="$JAVA_HOME_RESOLVED/jmods:$INPUT"
+fi
 if [[ -z "$PACKAGE_TYPE" ]]; then
   if command -v dpkg-deb >/dev/null; then
     PACKAGE_TYPE="deb"
@@ -88,7 +97,7 @@ if [[ "$PACKAGE_TYPE" == "appimage" ]]; then
       --name "$APP_NAME" \
       --app-version "$APP_VERSION" \
       --vendor "ERONIX" \
-      --module-path "$INPUT" \
+      --module-path "$MODULE_PATH" \
       --module hospital.emergency.room.simulation/hospital.ui.HospitalApp \
       --add-modules javafx.controls \
       --java-options "--enable-native-access=javafx.graphics" \
@@ -160,7 +169,7 @@ else
     --name "$APP_NAME" \
     --app-version "$APP_VERSION" \
     --vendor "ERONIX" \
-    --module-path "$INPUT" \
+    --module-path "$MODULE_PATH" \
     --module hospital.emergency.room.simulation/hospital.ui.HospitalApp \
     --add-modules javafx.controls \
     --java-options "--enable-native-access=javafx.graphics" \
