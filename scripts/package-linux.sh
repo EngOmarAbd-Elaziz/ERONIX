@@ -20,11 +20,14 @@ command -v jlink >/dev/null || { echo "JDK 25+ with jlink is required." >&2; exi
 JAVA_HOME_RESOLVED="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(command -v jpackage)")")")}"
 MODULE_PATH="$INPUT"
 if [[ -z "$RUNTIME_IMAGE" ]]; then
+  USE_MODULE_PACKAGING=true
   [[ -d "$JAVA_HOME_RESOLVED/jmods" ]] || {
     echo "JDK module files are required to build a bundled runtime. Use a JDK package that includes jmods." >&2
     exit 1
   }
   MODULE_PATH="$JAVA_HOME_RESOLVED/jmods:$INPUT"
+else
+  USE_MODULE_PACKAGING=false
 fi
 if [[ -z "$PACKAGE_TYPE" ]]; then
   if command -v dpkg-deb >/dev/null; then
@@ -75,7 +78,7 @@ cp "$ROOT/target/$APP_JAR" "$INPUT/$APP_JAR"
 mkdir -p "$OUTPUT" "$BUILD_OUTPUT"
 find "$BUILD_OUTPUT" -maxdepth 1 -type f -delete
 
-if [[ -z "${ERONIX_RUNTIME_IMAGE:-}" ]]; then
+if [[ "$USE_MODULE_PACKAGING" == true ]]; then
   RUNTIME_IMAGE="$ROOT/target/linux-runtime"
   rm -rf "$RUNTIME_IMAGE"
   jlink \
@@ -92,18 +95,34 @@ fi
 if [[ "$PACKAGE_TYPE" == "appimage" ]]; then
   APPIMAGE_STAGE="$ROOT/target/appimage-stage"
   APPIMAGE_DIR="$ROOT/target/ERONIX.AppDir"
-  jpackage \
-    "${PACKAGE_ARGUMENTS[@]}" \
-    --name "$APP_NAME" \
-    --app-version "$APP_VERSION" \
-    --vendor "ERONIX" \
-    --runtime-image "$RUNTIME_IMAGE" \
-    --module-path "$INPUT" \
-    --module hospital.emergency.room.simulation/hospital.ui.HospitalApp \
-    --java-options "--enable-native-access=javafx.graphics" \
-    --java-options "-Deronix.version=$APP_VERSION" \
-    --icon "$ROOT/src/main/resources/icons/app-icon.png" \
-    --dest "$APPIMAGE_STAGE"
+  if [[ "$USE_MODULE_PACKAGING" == true ]]; then
+    jpackage \
+      "${PACKAGE_ARGUMENTS[@]}" \
+      --name "$APP_NAME" \
+      --app-version "$APP_VERSION" \
+      --vendor "ERONIX" \
+      --runtime-image "$RUNTIME_IMAGE" \
+      --module-path "$INPUT" \
+      --module hospital.emergency.room.simulation/hospital.ui.HospitalApp \
+      --java-options "--enable-native-access=javafx.graphics" \
+      --java-options "-Deronix.version=$APP_VERSION" \
+      --icon "$ROOT/src/main/resources/icons/app-icon.png" \
+      --dest "$APPIMAGE_STAGE"
+  else
+    jpackage \
+      "${PACKAGE_ARGUMENTS[@]}" \
+      --name "$APP_NAME" \
+      --app-version "$APP_VERSION" \
+      --vendor "ERONIX" \
+      --runtime-image "$RUNTIME_IMAGE" \
+      --input "$INPUT" \
+      --main-jar "$APP_JAR" \
+      --main-class hospital.ui.HospitalLauncher \
+      --java-options "--enable-native-access=ALL-UNNAMED" \
+      --java-options "-Deronix.version=$APP_VERSION" \
+      --icon "$ROOT/src/main/resources/icons/app-icon.png" \
+      --dest "$APPIMAGE_STAGE"
+  fi
 
   mkdir -p "$APPIMAGE_DIR"
   cp -a "$APPIMAGE_STAGE/$APP_NAME/." "$APPIMAGE_DIR/"
@@ -148,18 +167,34 @@ APPRUN
   exit 0
 fi
 
-jpackage \
-  "${PACKAGE_ARGUMENTS[@]}" \
-  --name "$APP_NAME" \
-  --app-version "$APP_VERSION" \
-  --vendor "ERONIX" \
-  --runtime-image "$RUNTIME_IMAGE" \
-  --module-path "$INPUT" \
-  --module hospital.emergency.room.simulation/hospital.ui.HospitalApp \
-  --java-options "--enable-native-access=javafx.graphics" \
-  --java-options "-Deronix.version=$APP_VERSION" \
-  --icon "$ROOT/src/main/resources/icons/app-icon.png" \
-  --dest "$BUILD_OUTPUT"
+if [[ "$USE_MODULE_PACKAGING" == true ]]; then
+  jpackage \
+    "${PACKAGE_ARGUMENTS[@]}" \
+    --name "$APP_NAME" \
+    --app-version "$APP_VERSION" \
+    --vendor "ERONIX" \
+    --runtime-image "$RUNTIME_IMAGE" \
+    --module-path "$INPUT" \
+    --module hospital.emergency.room.simulation/hospital.ui.HospitalApp \
+    --java-options "--enable-native-access=javafx.graphics" \
+    --java-options "-Deronix.version=$APP_VERSION" \
+    --icon "$ROOT/src/main/resources/icons/app-icon.png" \
+    --dest "$BUILD_OUTPUT"
+else
+  jpackage \
+    "${PACKAGE_ARGUMENTS[@]}" \
+    --name "$APP_NAME" \
+    --app-version "$APP_VERSION" \
+    --vendor "ERONIX" \
+    --runtime-image "$RUNTIME_IMAGE" \
+    --input "$INPUT" \
+    --main-jar "$APP_JAR" \
+    --main-class hospital.ui.HospitalLauncher \
+    --java-options "--enable-native-access=ALL-UNNAMED" \
+    --java-options "-Deronix.version=$APP_VERSION" \
+    --icon "$ROOT/src/main/resources/icons/app-icon.png" \
+    --dest "$BUILD_OUTPUT"
+fi
 
 case "$PACKAGE_TYPE" in
   deb)
