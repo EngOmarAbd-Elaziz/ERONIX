@@ -12,11 +12,7 @@ PACKAGE_TYPE="${ERONIX_PACKAGE_TYPE:-}"
 APP_JAR="emergency-room-simulation-$APP_VERSION.jar"
 APPIMAGE_TOOL="${APPIMAGETOOL:-}"
 APPIMAGE_RUNTIME="${APPIMAGE_RUNTIME_FILE:-}"
-JAVA_HOME_RESOLVED="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")}"
 RUNTIME_IMAGE="${ERONIX_RUNTIME_IMAGE:-}"
-if [[ -z "$RUNTIME_IMAGE" && ! -d "$JAVA_HOME_RESOLVED/jmods" ]]; then
-  RUNTIME_IMAGE="$JAVA_HOME_RESOLVED"
-fi
 
 command -v mvn >/dev/null || { echo "Maven is required." >&2; exit 1; }
 command -v jpackage >/dev/null || { echo "JDK 25+ with jpackage is required." >&2; exit 1; }
@@ -158,7 +154,7 @@ if [[ -n "$RUNTIME_IMAGE" ]]; then
     --java-options "-Deronix.version=$APP_VERSION" \
     --icon "$ROOT/src/main/resources/icons/app-icon.png" \
     --dest "$BUILD_OUTPUT"
-elif [[ -d "$JAVA_HOME_RESOLVED/jmods" ]]; then
+else
   jpackage \
     "${PACKAGE_ARGUMENTS[@]}" \
     --name "$APP_NAME" \
@@ -168,20 +164,6 @@ elif [[ -d "$JAVA_HOME_RESOLVED/jmods" ]]; then
     --module hospital.emergency.room.simulation/hospital.ui.HospitalApp \
     --add-modules javafx.controls \
     --java-options "--enable-native-access=javafx.graphics" \
-    --java-options "-Deronix.version=$APP_VERSION" \
-    --icon "$ROOT/src/main/resources/icons/app-icon.png" \
-    --dest "$BUILD_OUTPUT"
-else
-  jpackage \
-    "${PACKAGE_ARGUMENTS[@]}" \
-    --name "$APP_NAME" \
-    --app-version "$APP_VERSION" \
-    --vendor "ERONIX" \
-    --runtime-image "$JAVA_HOME_RESOLVED" \
-    --input "$INPUT" \
-    --main-jar "$APP_JAR" \
-    --main-class hospital.ui.HospitalLauncher \
-    --java-options "--enable-native-access=ALL-UNNAMED" \
     --java-options "-Deronix.version=$APP_VERSION" \
     --icon "$ROOT/src/main/resources/icons/app-icon.png" \
     --dest "$BUILD_OUTPUT"
