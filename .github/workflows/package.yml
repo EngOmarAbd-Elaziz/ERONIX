@@ -40,7 +40,7 @@ jobs:
       - name: Build Linux installer
         env:
           ERONIX_PACKAGE_TYPE: deb
-        run: ERONIX_RUNTIME_IMAGE="$JAVA_HOME" bash scripts/package-linux.sh
+        run: bash scripts/package-linux.sh
       - name: Stage Linux installer
         run: cp dist/linux/packages/*.deb "$RUNNER_TEMP/ERONIX-linux.deb"
       - uses: actions/upload-artifact@v4
@@ -51,7 +51,7 @@ jobs:
       - name: Build Fedora RPM
         env:
           ERONIX_PACKAGE_TYPE: rpm
-        run: ERONIX_RUNTIME_IMAGE="$JAVA_HOME" bash scripts/package-linux.sh
+        run: bash scripts/package-linux.sh
       - name: Stage Fedora RPM
         run: cp dist/linux/packages/*.rpm "$RUNNER_TEMP/ERONIX-linux.rpm"
       - uses: actions/upload-artifact@v4
@@ -77,7 +77,7 @@ jobs:
           ERONIX_PACKAGE_TYPE: appimage
           APPIMAGETOOL: ${{ runner.temp }}/appimagetool.AppImage
           APPIMAGE_RUNTIME_FILE: ${{ runner.temp }}/appimage-runtime-x86_64
-        run: ERONIX_RUNTIME_IMAGE="$JAVA_HOME" bash scripts/package-linux.sh
+        run: bash scripts/package-linux.sh
       - name: Stage Linux AppImage
         run: cp dist/linux/packages/ERONIX-linux-x86_64.AppImage "$RUNNER_TEMP/"
       - uses: actions/upload-artifact@v4
