@@ -88,13 +88,13 @@
     -fx-text-fill: -fx-ink;
 }
 
-.stat-card, .surface-card {
+.stat-card, .surface-card-backdrop {
     -fx-background-color: -fx-surface;
     -fx-background-radius: 16px;
     -fx-border-color: -fx-outline;
     -fx-border-radius: 16px;
     -fx-border-width: 1px;
-    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.22), 16, 0.14, 0, 3);
+    -fx-effect: dropshadow(two-pass-box, rgba(0, 0, 0, 0.22), 12, 0.12, 0, 2);
 }
 
 .stat-card {
@@ -114,7 +114,7 @@
     -fx-text-fill: -fx-ink;
 }
 
-.surface-card {
+.surface-card-body {
     -fx-padding: 21px;
 }
 

@@ -10,9 +10,14 @@ import hospital.simulation.WordReportExporter;
 import hospital.update.UpdateChecker;
 import javafx.animation.AnimationTimer;
 import javafx.animation.FadeTransition;
+import javafx.animation.Interpolator;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.scene.CacheHint;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.geometry.Insets;
@@ -45,6 +50,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
@@ -59,6 +65,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 import static hospital.simulation.SimulationSnapshot.DoctorStatus;
@@ -74,15 +81,30 @@ public final class HospitalApp extends Application {
     private static final String APP_ICON = "/icons/app-icon.png";
     private static final String PORTFOLIO_URL =
             "https://engomarabd-elaziz.github.io/My-Portofolio/";
+    private static final int MAX_DISPLAYED_EVENTS = 1_500;
+    private static final long PROGRESS_UPDATE_INTERVAL_NANOS = 33_000_000L;
 
     private final javafx.collections.ObservableList<SimulationEvent> events =
             FXCollections.observableArrayList();
+    private final List<SimulationEvent> allEvents = new ArrayList<>();
     private final Map<Integer, DoctorCard> doctorCards = new HashMap<>();
-    private final Map<Integer, ProgressBar> roomProgressBars = new HashMap<>();
-    private final List<Label> seatLabels = new ArrayList<>();
+    private final Map<Integer, RoomCard> roomCards = new HashMap<>();
+    private final List<SeatSlot> seatSlots = new ArrayList<>();
+    private final Object pendingLock = new Object();
+    private final List<SimulationEvent> pendingEvents = new ArrayList<>();
+    private SimulationSnapshot pendingSnapshot;
+    private long currentGeneration;
+    private long pendingGeneration;
+    private boolean flushScheduled;
     private SimulationController controller;
     private Stage stage;
     private BorderPane root;
+    private ScrollPane dashboardScroll;
+    private VBox dashboardContent;
+    private GridPane liveOperationsGrid;
+    private ScrollBar eventListVerticalScrollBar;
+    private Timeline autoScrollTimeline;
+    private boolean pendingScrollToLiveView;
     private Label statusBadge;
     private Label waitingStat;
     private Label totalPatientsStat;
@@ -118,6 +140,19 @@ public final class HospitalApp extends Application {
     private volatile boolean uiActive = true;
     private SimulationSnapshot latestSnapshot;
     private AnimationTimer progressTimer;
+    private long lastProgressUpdateNanos;
+    private Status lastRenderedStatus;
+    private String lastOutsideText;
+    private int lastWaitingOccupancy = -1;
+    private int lastWaitingCapacity = -1;
+    private int lastTotalPatients = -1;
+    private int lastWaiting = -1;
+    private int lastOutside = -1;
+    private int lastTreating = -1;
+    private int lastCompleted = -1;
+    private int lastAvailableDoctors = -1;
+    private int lastBusyDoctors = -1;
+    private int lastAvailableRooms = -1;
 
     @Override
     public void start(Stage stage) {
@@ -164,6 +199,9 @@ public final class HospitalApp extends Application {
                 || latestSnapshot.status() != Status.RUNNING) {
             return;
         }
+        if (stopButton.isFocused() && root != null) {
+            root.requestFocus();
+        }
         stopButton.setDisable(true);
         statusBadge.setText(t("status.stopping"));
         statusBadge.getStyleClass().removeAll(
@@ -196,6 +234,8 @@ public final class HospitalApp extends Application {
         mark.setSmooth(true);
         mark.setAccessibleText(t("app.icon"));
         mark.getStyleClass().add("brand-mark");
+        mark.setCache(true);
+        mark.setCacheHint(CacheHint.SPEED);
         VBox titleBlock = new VBox(3);
         Label title = new Label(t("app.title"));
         title.getStyleClass().add("app-title");
@@ -236,7 +276,7 @@ public final class HospitalApp extends Application {
             showUpdateMessage(Alert.AlertType.INFORMATION, t("report.unavailable"));
             return;
         }
-        SimulationReport report = SimulationReport.from(latestSnapshot, List.copyOf(events));
+        SimulationReport report = SimulationReport.from(latestSnapshot, List.copyOf(allEvents));
         Stage reportStage = new Stage();
         reportStage.initOwner(stage);
         reportStage.setTitle(t("report.title"));
@@ -283,7 +323,7 @@ public final class HospitalApp extends Application {
     }
 
     private ScrollPane createReportRoot(Stage reportStage) {
-        SimulationReport report = SimulationReport.from(latestSnapshot, List.copyOf(events));
+        SimulationReport report = SimulationReport.from(latestSnapshot, List.copyOf(allEvents));
         VBox page = new VBox(18);
         page.setPadding(new Insets(24));
         page.getStyleClass().add("dashboard-content");
@@ -342,6 +382,8 @@ public final class HospitalApp extends Application {
             label.getStyleClass().add("stat-label");
             VBox card = new VBox(8, label, value);
             card.getStyleClass().add("stat-card");
+            card.setCache(true);
+            card.setCacheHint(CacheHint.DEFAULT);
             metrics.add(card, i % 3, i / 3);
             GridPane.setHgrow(card, Priority.ALWAYS);
         }
@@ -448,7 +490,7 @@ public final class HospitalApp extends Application {
             showUpdateMessage(Alert.AlertType.INFORMATION, t("report.unavailable"));
             return;
         }
-        exportReport(SimulationReport.from(latestSnapshot, List.copyOf(events)));
+        exportReport(SimulationReport.from(latestSnapshot, List.copyOf(allEvents)));
     }
 
     private void checkForUpdates(Button button) {
@@ -535,10 +577,10 @@ public final class HospitalApp extends Application {
         mainGrid.getColumnConstraints().get(0).setPercentWidth(39);
         mainGrid.getColumnConstraints().get(1).setPercentWidth(61);
 
-        VBox waitingCard = createWaitingCard();
-        VBox doctorsCard = createDoctorsCard();
-        VBox roomsCard = createRoomsCard();
-        VBox eventsCard = createEventsCard();
+        Region waitingCard = createWaitingCard();
+        Region doctorsCard = createDoctorsCard();
+        Region roomsCard = createRoomsCard();
+        Region eventsCard = createEventsCard();
         GridPane.setHgrow(waitingCard, Priority.ALWAYS);
         GridPane.setHgrow(doctorsCard, Priority.ALWAYS);
         mainGrid.add(waitingCard, 0, 0);
@@ -547,9 +589,13 @@ public final class HospitalApp extends Application {
         mainGrid.add(eventsCard, 1, 1);
 
         content.getChildren().addAll(intro, createConfigurationCard(), stats, mainGrid);
+        dashboardContent = content;
+        liveOperationsGrid = mainGrid;
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
         scrollPane.getStyleClass().add("main-scroll");
+        scrollPane.addEventFilter(ScrollEvent.SCROLL, event -> stopAutoScroll());
+        dashboardScroll = scrollPane;
         return scrollPane;
     }
 
@@ -568,6 +614,8 @@ public final class HospitalApp extends Application {
             values[i].getStyleClass().add("stat-value");
             VBox card = new VBox(9, new Label(names[i]), values[i]);
             card.getStyleClass().add("stat-card");
+            card.setCache(true);
+            card.setCacheHint(CacheHint.DEFAULT);
             card.getChildren().getFirst().getStyleClass().add("stat-label");
             grid.add(card, i % 4, i / 4);
             GridPane.setHgrow(card, Priority.ALWAYS);
@@ -588,8 +636,8 @@ public final class HospitalApp extends Application {
         return grid;
     }
 
-    private VBox createWaitingCard() {
-        VBox card = card(t("waiting.title"), t("waiting.subtitle"));
+    private Region createWaitingCard() {
+        SurfaceCard card = createSurfaceCard(t("waiting.title"), t("waiting.subtitle"));
         HBox occupancy = new HBox(8);
         occupancy.setAlignment(Pos.CENTER_LEFT);
         occupancyLabel = new Label(occupancyText(0, 0));
@@ -601,54 +649,73 @@ public final class HospitalApp extends Application {
         outsideTitle.getStyleClass().add("section-label");
         outsidePatientsLabel = new Label(t("waiting.none"));
         outsidePatientsLabel.getStyleClass().add("outside-patients");
-        card.getChildren().addAll(occupancy, seatsPane, divider(), outsideTitle, outsidePatientsLabel);
-        return card;
+        card.body().getChildren().addAll(
+                occupancy, seatsPane, divider(), outsideTitle, outsidePatientsLabel);
+        return card.root();
     }
 
-    private VBox createDoctorsCard() {
-        VBox card = card(t("doctors.title"), t("doctors.subtitle"));
+    private Region createDoctorsCard() {
+        SurfaceCard card = createSurfaceCard(t("doctors.title"), t("doctors.subtitle"));
         doctorsPane = new VBox(10);
         Label empty = new Label(t("doctors.empty"));
         empty.getStyleClass().add("empty-hint");
         doctorsPane.getChildren().add(empty);
-        card.getChildren().add(doctorsPane);
-        return card;
+        card.body().getChildren().add(doctorsPane);
+        return card.root();
     }
 
-    private VBox createRoomsCard() {
-        VBox card = card(t("rooms.title"), t("rooms.subtitle"));
+    private Region createRoomsCard() {
+        SurfaceCard card = createSurfaceCard(t("rooms.title"), t("rooms.subtitle"));
         roomsPane = new HBox(12);
         roomsPane.setAlignment(Pos.CENTER_LEFT);
         int initialRooms = parsePositiveOrDefault(
                 roomCountField == null ? null : roomCountField.getText(), 2);
-        for (int room = 1; room <= initialRooms; room++) {
-            roomsPane.getChildren().add(roomCard(room));
-        }
-        card.getChildren().add(roomsPane);
-        return card;
+        populateIdleRoomCards(initialRooms);
+        card.body().getChildren().add(roomsPane);
+        return card.root();
     }
 
-    private VBox createEventsCard() {
-        VBox card = card(t("events.title"), t("events.subtitle"));
+    private Region createEventsCard() {
+        SurfaceCard card = createSurfaceCard(t("events.title"), t("events.subtitle"));
         eventList = new ListView<>(events);
         eventList.getStyleClass().add("event-list");
         eventList.setCellFactory(view -> new EventCell());
         eventList.setPrefHeight(360);
-        eventList.addEventFilter(ScrollEvent.SCROLL, event -> {
-            if (event.getDeltaY() > 0) {
-                timelineAtBottom = false;
-            } else if (event.getDeltaY() < 0) {
-                Platform.runLater(() -> timelineAtBottom = isTimelineAtBottom());
-            }
-        });
+        eventList.addEventFilter(ScrollEvent.SCROLL, this::handleEventListScroll);
         VBox.setVgrow(eventList, Priority.ALWAYS);
-        card.getChildren().add(eventList);
-        VBox.setVgrow(card, Priority.ALWAYS);
-        return card;
+        card.body().getChildren().add(eventList);
+        VBox.setVgrow(card.root(), Priority.ALWAYS);
+        return card.root();
     }
 
-    private VBox createConfigurationCard() {
-        VBox card = card(t("config.title"), t("config.subtitle"));
+    private void handleEventListScroll(ScrollEvent event) {
+        double deltaY = event.getDeltaY();
+        if (deltaY == 0) {
+            return;
+        }
+        ScrollBar verticalBar = findEventListVerticalScrollBar();
+        boolean canScrollInDirection = verticalBar != null
+                && verticalBar.isVisible()
+                && verticalBar.getMax() > verticalBar.getMin()
+                && (deltaY > 0
+                        ? verticalBar.getValue() > verticalBar.getMin() + 0.001
+                        : verticalBar.getValue() < verticalBar.getMax() - 0.001);
+        if (!canScrollInDirection) {
+            if (dashboardScroll != null) {
+                event.consume();
+                dashboardScroll.fireEvent(event.copyFor(dashboardScroll, dashboardScroll));
+            }
+            return;
+        }
+        if (deltaY > 0) {
+            timelineAtBottom = false;
+        } else {
+            Platform.runLater(() -> timelineAtBottom = isTimelineAtBottom());
+        }
+    }
+
+    private Region createConfigurationCard() {
+        SurfaceCard card = createSurfaceCard(t("config.title"), t("config.subtitle"));
         GridPane fields = new GridPane();
         fields.setHgap(14);
         fields.setVgap(12);
@@ -695,8 +762,8 @@ public final class HospitalApp extends Application {
         Label guidance = new Label(t("config.hint"));
         guidance.getStyleClass().add("form-hint");
         actions.getChildren().addAll(startButton, stopButton, resetButton, guidance);
-        card.getChildren().addAll(fields, actions);
-        return card;
+        card.body().getChildren().addAll(fields, actions);
+        return card.root();
     }
 
     private void startSimulation() {
@@ -713,12 +780,15 @@ public final class HospitalApp extends Application {
             if (controller != null) {
                 controller.stop();
             }
+            long generation = bumpGeneration();
             clearDashboard();
+            pendingScrollToLiveView = true;
             setInputsDisabled(true);
             startButton.setDisable(true);
             stopButton.setDisable(false);
             resetButton.setDisable(true);
-            SimulationObserver observer = this::onSimulationUpdate;
+            SimulationObserver observer = (snapshot, event) ->
+                    onSimulationUpdate(generation, snapshot, event);
             controller = new SimulationController(config, observer);
             controller.start();
         } catch (IllegalArgumentException exception) {
@@ -730,6 +800,9 @@ public final class HospitalApp extends Application {
         if (latestSnapshot != null && latestSnapshot.status() == Status.RUNNING) {
             return;
         }
+        pendingScrollToLiveView = false;
+        stopAutoScroll();
+        bumpGeneration();
         if (controller != null) {
             controller.stop();
             controller = null;
@@ -738,132 +811,260 @@ public final class HospitalApp extends Application {
         renderIdle();
         setInputsDisabled(false);
         startButton.setDisable(false);
+        if (resetButton.isFocused()) {
+            startButton.requestFocus();
+        }
         stopButton.setDisable(true);
         resetButton.setDisable(true);
     }
 
-    private void onSimulationUpdate(SimulationSnapshot snapshot, SimulationEvent event) {
+    private long bumpGeneration() {
+        synchronized (pendingLock) {
+            currentGeneration++;
+            pendingEvents.clear();
+            pendingSnapshot = null;
+            return currentGeneration;
+        }
+    }
+
+    private void onSimulationUpdate(
+            long generation, SimulationSnapshot snapshot, SimulationEvent event) {
         if (!uiActive) {
             return;
         }
-        try {
-            Platform.runLater(() -> renderUpdate(snapshot, event));
-        } catch (IllegalStateException exception) {
-            if (uiActive) {
-                throw exception;
+        boolean schedule = false;
+        synchronized (pendingLock) {
+            if (generation != currentGeneration) {
+                return;
+            }
+            pendingGeneration = generation;
+            pendingSnapshot = snapshot;
+            if (event != null) {
+                pendingEvents.add(event);
+            }
+            if (!flushScheduled) {
+                flushScheduled = true;
+                schedule = true;
+            }
+        }
+        if (schedule) {
+            try {
+                Platform.runLater(this::flushPendingUpdates);
+            } catch (IllegalStateException exception) {
+                synchronized (pendingLock) {
+                    flushScheduled = false;
+                }
+                if (uiActive) {
+                    throw exception;
+                }
             }
         }
     }
 
-    private void renderUpdate(SimulationSnapshot snapshot, SimulationEvent event) {
+    private void flushPendingUpdates() {
+        SimulationSnapshot snapshot;
+        List<SimulationEvent> batch;
+        synchronized (pendingLock) {
+            flushScheduled = false;
+            if (!uiActive || pendingGeneration != currentGeneration || pendingSnapshot == null) {
+                pendingEvents.clear();
+                pendingSnapshot = null;
+                return;
+            }
+            snapshot = pendingSnapshot;
+            batch = pendingEvents.isEmpty() ? List.of() : new ArrayList<>(pendingEvents);
+            pendingEvents.clear();
+            pendingSnapshot = null;
+        }
+        renderUpdate(snapshot, batch);
+    }
+
+    private void renderUpdate(SimulationSnapshot snapshot, List<SimulationEvent> newEvents) {
         latestSnapshot = snapshot;
-        updateStatus(snapshot.status());
-        totalPatientsStat.setText(Integer.toString(snapshot.config().patientCount()));
-        waitingStat.setText(Integer.toString(snapshot.patientsWaiting()));
-        outsideStat.setText(Integer.toString(snapshot.patientsOutside()));
-        treatingStat.setText(Integer.toString(snapshot.patientsBeingTreated()));
-        completedStat.setText(Integer.toString(snapshot.patientsCompleted()));
-        availableDoctorsStat.setText(Integer.toString(snapshot.availableDoctors()));
-        busyDoctorsStat.setText(Integer.toString(snapshot.busyDoctors()));
-        availableRoomsStat.setText(Integer.toString(snapshot.availableTreatmentRooms()));
-        occupancyLabel.setText(occupancyText(
-                snapshot.patientsWaiting(), snapshot.config().waitingRoomCapacity()));
+        updateStatValue(totalPatientsStat, snapshot.config().patientCount(), lastTotalPatients);
+        lastTotalPatients = snapshot.config().patientCount();
+        int waitingCount = snapshot.patientsWaiting();
+        updateStatValue(waitingStat, waitingCount, lastWaiting);
+        lastWaiting = waitingCount;
+        int outsideCount = snapshot.patientsOutside();
+        updateStatValue(outsideStat, outsideCount, lastOutside);
+        lastOutside = outsideCount;
+        int treatingCount = snapshot.patientsBeingTreated();
+        updateStatValue(treatingStat, treatingCount, lastTreating);
+        lastTreating = treatingCount;
+        int completedCount = snapshot.patientsCompleted();
+        updateStatValue(completedStat, completedCount, lastCompleted);
+        lastCompleted = completedCount;
+        int availableDoctorCount = snapshot.availableDoctors();
+        updateStatValue(availableDoctorsStat, availableDoctorCount, lastAvailableDoctors);
+        lastAvailableDoctors = availableDoctorCount;
+        int busyDoctorCount = snapshot.busyDoctors();
+        updateStatValue(busyDoctorsStat, busyDoctorCount, lastBusyDoctors);
+        lastBusyDoctors = busyDoctorCount;
+        int availableRoomCount = snapshot.availableTreatmentRooms();
+        updateStatValue(availableRoomsStat, availableRoomCount, lastAvailableRooms);
+        lastAvailableRooms = availableRoomCount;
+
+        int capacity = snapshot.config().waitingRoomCapacity();
+        if (waitingCount != lastWaitingOccupancy || capacity != lastWaitingCapacity) {
+            occupancyLabel.setText(occupancyText(waitingCount, capacity));
+            lastWaitingOccupancy = waitingCount;
+            lastWaitingCapacity = capacity;
+        }
         renderSeats(snapshot);
         renderOutside(snapshot);
         renderDoctors(snapshot);
         renderRooms(snapshot);
 
-        if (event != null) {
-            events.add(event);
+        if (!newEvents.isEmpty()) {
+            allEvents.addAll(newEvents);
+            events.addAll(newEvents);
+            trimDisplayedEvents(events, MAX_DISPLAYED_EVENTS);
+            if (timelineAtBottom) {
+                eventList.scrollTo(events.size() - 1);
+            }
         }
-        eventList.refresh();
-        if (event != null && timelineAtBottom) {
-            eventList.scrollTo(events.size() - 1);
+
+        Status status = snapshot.status();
+        if (status != lastRenderedStatus) {
+            lastRenderedStatus = status;
+            updateStatus(status);
+            if (status == Status.COMPLETED) {
+                completionBanner.setText(t("completion"));
+                completionBanner.setVisible(true);
+                completionBanner.setManaged(true);
+                setInputsDisabled(true);
+                startButton.setDisable(true);
+                stopButton.setDisable(true);
+                resetButton.setDisable(false);
+            } else if (status == Status.STOPPED) {
+                setInputsDisabled(false);
+                startButton.setDisable(false);
+                stopButton.setDisable(true);
+                resetButton.setDisable(false);
+            } else if (status == Status.RUNNING) {
+                setInputsDisabled(true);
+                startButton.setDisable(true);
+                stopButton.setDisable(false);
+                resetButton.setDisable(true);
+            }
         }
-        if (snapshot.status() == Status.COMPLETED) {
-            completionBanner.setText(t("completion"));
-            completionBanner.setVisible(true);
-            completionBanner.setManaged(true);
-            setInputsDisabled(true);
-            startButton.setDisable(true);
-            stopButton.setDisable(true);
-            resetButton.setDisable(false);
-        } else if (snapshot.status() == Status.STOPPED) {
-            setInputsDisabled(false);
-            startButton.setDisable(false);
-            stopButton.setDisable(true);
-            resetButton.setDisable(false);
-        } else if (snapshot.status() == Status.RUNNING) {
-            setInputsDisabled(true);
-            startButton.setDisable(true);
-            stopButton.setDisable(false);
-            resetButton.setDisable(true);
+        if (pendingScrollToLiveView && status == Status.RUNNING) {
+            pendingScrollToLiveView = false;
+            Platform.runLater(this::scrollToLiveOperations);
         }
+    }
+
+    private void scrollToLiveOperations() {
+        if (dashboardScroll == null || dashboardContent == null || liveOperationsGrid == null) {
+            return;
+        }
+        dashboardScroll.applyCss();
+        dashboardScroll.layout();
+        double targetVvalue = computeScrollTargetVvalue(
+                liveOperationsGrid.getBoundsInParent().getMinY(),
+                22.0,
+                dashboardContent.getBoundsInLocal().getHeight(),
+                dashboardScroll.getViewportBounds().getHeight());
+        stopAutoScroll();
+        if (Math.abs(dashboardScroll.getVvalue() - targetVvalue) < 0.002) {
+            dashboardScroll.setVvalue(targetVvalue);
+            return;
+        }
+        autoScrollTimeline = new Timeline(new KeyFrame(
+                Duration.millis(260),
+                new KeyValue(dashboardScroll.vvalueProperty(), targetVvalue, Interpolator.EASE_OUT)));
+        autoScrollTimeline.play();
+    }
+
+    private void stopAutoScroll() {
+        if (autoScrollTimeline != null) {
+            autoScrollTimeline.stop();
+            autoScrollTimeline = null;
+        }
+    }
+
+    static double computeScrollTargetVvalue(
+            double targetMinY, double topMargin, double contentHeight, double viewportHeight) {
+        double scrollableHeight = contentHeight - viewportHeight;
+        if (scrollableHeight <= 0) {
+            return 0;
+        }
+        double targetY = Math.max(0, targetMinY - topMargin);
+        return Math.max(0, Math.min(1.0, targetY / scrollableHeight));
+    }
+
+    private static void updateStatValue(Label label, int value, int previousValue) {
+        if (value != previousValue) {
+            label.setText(Integer.toString(value));
+        }
+    }
+
+    private ScrollBar findEventListVerticalScrollBar() {
+        if (eventListVerticalScrollBar != null) {
+            return eventListVerticalScrollBar;
+        }
+        if (eventList == null) {
+            return null;
+        }
+        for (javafx.scene.Node node : eventList.lookupAll(".scroll-bar")) {
+            if (node instanceof ScrollBar scrollBar
+                    && scrollBar.getOrientation() == Orientation.VERTICAL) {
+                eventListVerticalScrollBar = scrollBar;
+                return scrollBar;
+            }
+        }
+        return null;
     }
 
     private boolean isTimelineAtBottom() {
-        return eventList.lookupAll(".scroll-bar").stream()
-                .filter(ScrollBar.class::isInstance)
-                .map(ScrollBar.class::cast)
-                .filter(scrollBar -> scrollBar.getOrientation() == Orientation.VERTICAL)
-                .findFirst()
-                .map(scrollBar -> scrollBar.getValue() >= scrollBar.getMax() - 0.01)
-                .orElse(true);
+        ScrollBar scrollBar = findEventListVerticalScrollBar();
+        if (scrollBar == null || !scrollBar.isVisible()) {
+            return true;
+        }
+        return scrollBar.getValue() >= scrollBar.getMax() - 0.01;
     }
 
     private void renderSeats(SimulationSnapshot snapshot) {
-        if (seatLabels.size() != snapshot.config().waitingRoomCapacity()) {
-            seatLabels.clear();
+        String availableText = t("seat.available");
+        int capacity = snapshot.config().waitingRoomCapacity();
+        if (seatSlots.size() != capacity) {
+            seatSlots.clear();
             seatsPane.getChildren().clear();
-            for (int i = 0; i < snapshot.config().waitingRoomCapacity(); i++) {
-                Label seat = new Label(t("seat.available"));
-                seat.getStyleClass().add("seat-empty");
-                seat.setMinSize(86, 54);
-                seat.setAlignment(Pos.CENTER);
-                seatLabels.add(seat);
-                seatsPane.getChildren().add(seat);
+            for (int i = 0; i < capacity; i++) {
+                SeatSlot slot = new SeatSlot(availableText);
+                seatSlots.add(slot);
+                seatsPane.getChildren().add(slot.label);
             }
         }
-        for (int i = 0; i < seatLabels.size(); i++) {
-            Label seat = seatLabels.get(i);
-            if (i < snapshot.waitingPatients().size()) {
-                String patient = snapshot.waitingPatients().get(i);
-                boolean changed = !seat.getText().equals(patient);
-                seat.setText(patient);
-                seat.getStyleClass().remove("seat-empty");
-                if (!seat.getStyleClass().contains("seat-occupied")) {
-                    seat.getStyleClass().add("seat-occupied");
-                }
-                if (changed) {
-                    animateSeat(seat);
-                }
-            } else {
-                boolean changed = !seat.getText().equals(t("seat.available"));
-                seat.setText(t("seat.available"));
-                seat.getStyleClass().remove("seat-occupied");
-                if (!seat.getStyleClass().contains("seat-empty")) {
-                    seat.getStyleClass().add("seat-empty");
-                }
-                if (changed) {
-                    animateSeat(seat);
-                }
+        List<String> waiting = snapshot.waitingPatients();
+        for (int i = 0; i < seatSlots.size(); i++) {
+            SeatSlot slot = seatSlots.get(i);
+            boolean shouldOccupy = i < waiting.size();
+            String targetText = shouldOccupy ? waiting.get(i) : availableText;
+            if (slot.occupied == shouldOccupy && Objects.equals(slot.displayedText, targetText)) {
+                continue;
             }
+            slot.label.setText(targetText);
+            slot.displayedText = targetText;
+            if (slot.occupied != shouldOccupy) {
+                slot.occupied = shouldOccupy;
+                slot.label.getStyleClass().remove(shouldOccupy ? "seat-empty" : "seat-occupied");
+                slot.label.getStyleClass().add(shouldOccupy ? "seat-occupied" : "seat-empty");
+            }
+            slot.transition.stop();
+            slot.transition.playFromStart();
         }
-    }
-
-    private void animateSeat(Label seat) {
-        FadeTransition transition = new FadeTransition(Duration.millis(180), seat);
-        transition.setFromValue(0.55);
-        transition.setToValue(1.0);
-        transition.play();
     }
 
     private void renderOutside(SimulationSnapshot snapshot) {
-        if (snapshot.patientsOutside() == 0) {
-            outsidePatientsLabel.setText(t("waiting.none"));
-            return;
+        String text = snapshot.patientsOutside() == 0
+                ? t("waiting.none")
+                : String.join("  ·  ", snapshot.outsidePatientIds());
+        if (!text.equals(lastOutsideText)) {
+            outsidePatientsLabel.setText(text);
+            lastOutsideText = text;
         }
-        outsidePatientsLabel.setText(String.join("  ·  ", snapshot.outsidePatientIds()));
     }
 
     private void renderDoctors(SimulationSnapshot snapshot) {
@@ -882,40 +1083,34 @@ public final class HospitalApp extends Application {
     }
 
     private void renderRooms(SimulationSnapshot snapshot) {
-        roomProgressBars.clear();
-        roomsPane.getChildren().clear();
-        for (SimulationSnapshot.TreatmentRoom room : snapshot.treatmentRooms()) {
-            VBox tile = new VBox(10);
-            tile.getStyleClass().addAll("room-tile",
-                    room.status() == RoomStatus.OCCUPIED ? "room-occupied" : "room-available");
-            Label title = new Label(t("room.title") + " " + room.number());
-            title.getStyleClass().add("room-title");
-            Label state = new Label(t(room.status() == RoomStatus.OCCUPIED
-                    ? "room.occupied" : "room.available"));
-            state.getStyleClass().add("room-state");
-            Label assignment = new Label(room.status() == RoomStatus.OCCUPIED
-                    ? t("doctor.prefix") + " " + room.doctorId() + "  ·  " + room.patientId()
-                    : t("room.ready"));
-            assignment.getStyleClass().add("room-assignment");
-            tile.getChildren().addAll(title, state, assignment);
-            if (room.status() == RoomStatus.OCCUPIED) {
-                ProgressBar progress = new ProgressBar(0);
-                progress.getStyleClass().addAll("treatment-progress", "room-progress");
-                roomProgressBars.put(room.number(), progress);
-                tile.getChildren().add(progress);
+        List<SimulationSnapshot.TreatmentRoom> rooms = snapshot.treatmentRooms();
+        if (roomCards.size() != rooms.size()) {
+            roomCards.clear();
+            roomsPane.getChildren().clear();
+            for (SimulationSnapshot.TreatmentRoom room : rooms) {
+                RoomCard card = new RoomCard(room.number());
+                roomCards.put(room.number(), card);
+                roomsPane.getChildren().add(card.container);
             }
-            HBox.setHgrow(tile, Priority.ALWAYS);
-            roomsPane.getChildren().add(tile);
+        }
+        for (SimulationSnapshot.TreatmentRoom room : rooms) {
+            roomCards.get(room.number()).update(room);
+        }
+    }
+
+    private void populateIdleRoomCards(int roomCount) {
+        roomCards.clear();
+        roomsPane.getChildren().clear();
+        for (int room = 1; room <= roomCount; room++) {
+            RoomCard card = new RoomCard(room);
+            roomCards.put(room, card);
+            roomsPane.getChildren().add(card.container);
         }
     }
 
     private void renderIdle() {
-        statusBadge.setText(t("status.idle"));
-        statusBadge.getStyleClass().removeAll(
-                "status-running", "status-completed", "status-stopped", "status-idle");
-        if (!statusBadge.getStyleClass().contains("status-idle")) {
-            statusBadge.getStyleClass().add("status-idle");
-        }
+        lastRenderedStatus = Status.IDLE;
+        updateStatus(Status.IDLE);
         waitingStat.setText("0");
         totalPatientsStat.setText("0");
         outsideStat.setText("0");
@@ -923,33 +1118,57 @@ public final class HospitalApp extends Application {
         completedStat.setText("0");
         availableDoctorsStat.setText("0");
         busyDoctorsStat.setText("0");
-        availableRoomsStat.setText(Integer.toString(
-                parsePositiveOrDefault(roomCountField.getText(), 2)));
-        occupancyLabel.setText(occupancyText(0, 0));
-        outsidePatientsLabel.setText(t("waiting.none"));
-        seatsPane.getChildren().clear();
-        seatLabels.clear();
-        doctorsPane.getChildren().setAll(new Label(t("doctors.empty")));
-        roomsPane.getChildren().clear();
         int roomCount = parsePositiveOrDefault(roomCountField.getText(), 2);
-        for (int room = 1; room <= roomCount; room++) {
-            roomsPane.getChildren().add(roomCard(room));
-        }
-        roomProgressBars.clear();
+        availableRoomsStat.setText(Integer.toString(roomCount));
+        resetStatCaches(roomCount);
+        occupancyLabel.setText(occupancyText(0, 0));
+        lastWaitingOccupancy = 0;
+        lastWaitingCapacity = 0;
+        String noneOutside = t("waiting.none");
+        outsidePatientsLabel.setText(noneOutside);
+        lastOutsideText = noneOutside;
+        seatsPane.getChildren().clear();
+        seatSlots.clear();
+        Label emptyDoctors = new Label(t("doctors.empty"));
+        emptyDoctors.getStyleClass().add("empty-hint");
+        doctorsPane.getChildren().setAll(emptyDoctors);
+        populateIdleRoomCards(roomCount);
         completionBanner.setVisible(false);
         completionBanner.setManaged(false);
         events.clear();
+        allEvents.clear();
         doctorCards.clear();
+        timelineAtBottom = true;
         latestSnapshot = null;
     }
 
     private void clearDashboard() {
         events.clear();
+        allEvents.clear();
         doctorCards.clear();
-        seatLabels.clear();
+        roomCards.clear();
+        seatSlots.clear();
         seatsPane.getChildren().clear();
         doctorsPane.getChildren().clear();
+        roomsPane.getChildren().clear();
+        resetStatCaches(-1);
+        lastWaitingOccupancy = -1;
+        lastWaitingCapacity = -1;
+        lastOutsideText = null;
+        lastRenderedStatus = null;
+        timelineAtBottom = true;
         latestSnapshot = null;
+    }
+
+    private void resetStatCaches(int availableRooms) {
+        lastTotalPatients = 0;
+        lastWaiting = 0;
+        lastOutside = 0;
+        lastTreating = 0;
+        lastCompleted = 0;
+        lastAvailableDoctors = 0;
+        lastBusyDoctors = 0;
+        lastAvailableRooms = availableRooms;
     }
 
     private void updateStatus(Status status) {
@@ -971,33 +1190,64 @@ public final class HospitalApp extends Application {
                 if (latestSnapshot == null || latestSnapshot.status() != Status.RUNNING) {
                     return;
                 }
+                if (now - lastProgressUpdateNanos < PROGRESS_UPDATE_INTERVAL_NANOS) {
+                    return;
+                }
+                lastProgressUpdateNanos = now;
                 long currentTime = System.currentTimeMillis();
-                for (SimulationSnapshot.Doctor doctor : latestSnapshot.doctors()) {
+                List<SimulationSnapshot.Doctor> doctors = latestSnapshot.doctors();
+                for (SimulationSnapshot.Doctor doctor : doctors) {
                     DoctorCard card = doctorCards.get(doctor.id());
                     if (card != null && doctor.status() == DoctorStatus.TREATING) {
-                        double elapsed = currentTime - doctor.treatmentStartedAtMillis();
-                        card.progress.setProgress(Math.min(1.0,
-                                elapsed / doctor.treatmentDurationMillis()));
+                        updateProgressBar(card.progress, currentTime, doctor);
                     }
                 }
                 for (SimulationSnapshot.TreatmentRoom room : latestSnapshot.treatmentRooms()) {
                     if (room.status() != RoomStatus.OCCUPIED) {
                         continue;
                     }
-                    ProgressBar progress = roomProgressBars.get(room.number());
-                    SimulationSnapshot.Doctor doctor = latestSnapshot.doctors().stream()
-                            .filter(candidate -> candidate.id() == room.doctorId())
-                            .findFirst()
-                            .orElseThrow();
-                    if (progress != null) {
-                        double elapsed = currentTime - doctor.treatmentStartedAtMillis();
-                        progress.setProgress(Math.min(1.0,
-                                elapsed / doctor.treatmentDurationMillis()));
+                    RoomCard card = roomCards.get(room.number());
+                    SimulationSnapshot.Doctor doctor = findDoctor(doctors, room.doctorId());
+                    if (card != null && doctor != null) {
+                        updateProgressBar(card.progress, currentTime, doctor);
                     }
                 }
             }
         };
         progressTimer.start();
+    }
+
+    private static void updateProgressBar(
+            ProgressBar bar, long currentTime, SimulationSnapshot.Doctor doctor) {
+        int duration = doctor.treatmentDurationMillis();
+        double target = duration <= 0
+                ? 1.0
+                : Math.min(1.0, (double) Math.max(0L, currentTime - doctor.treatmentStartedAtMillis()) / duration);
+        double current = bar.getProgress();
+        if (Math.abs(current - target) >= 0.004 || (target >= 1.0 && current < 1.0)) {
+            bar.setProgress(target);
+        }
+    }
+
+    static void trimDisplayedEvents(List<SimulationEvent> displayed, int maxDisplayed) {
+        int overflow = displayed.size() - maxDisplayed;
+        if (overflow > 0) {
+            displayed.subList(0, overflow).clear();
+        }
+    }
+
+    static SimulationSnapshot.Doctor findDoctor(
+            List<SimulationSnapshot.Doctor> doctors, int doctorId) {
+        int index = doctorId - 1;
+        if (index >= 0 && index < doctors.size() && doctors.get(index).id() == doctorId) {
+            return doctors.get(index);
+        }
+        for (SimulationSnapshot.Doctor candidate : doctors) {
+            if (candidate.id() == doctorId) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     private void applyTheme() {
@@ -1028,17 +1278,17 @@ public final class HospitalApp extends Application {
         return occupied + " / " + capacity + " " + t("waiting.seats");
     }
 
-        private void updateIdleRoomCount() {
-            if (latestSnapshot != null || roomsPane == null || roomCountField == null) {
-                return;
-            }
-            roomsPane.getChildren().clear();
-            int roomCount = parsePositiveOrDefault(roomCountField.getText(), 2);
-            for (int room = 1; room <= roomCount; room++) {
-                roomsPane.getChildren().add(roomCard(room));
-            }
-            availableRoomsStat.setText(Integer.toString(roomCount));
+    private void updateIdleRoomCount() {
+        if (latestSnapshot != null || roomsPane == null || roomCountField == null) {
+            return;
         }
+        int roomCount = parsePositiveOrDefault(roomCountField.getText(), 2);
+        if (roomCards.size() != roomCount) {
+            populateIdleRoomCards(roomCount);
+        }
+        availableRoomsStat.setText(Integer.toString(roomCount));
+        lastAvailableRooms = roomCount;
+    }
 
     private static int parsePositiveOrDefault(String value, int fallback) {
         if (value == null) {
@@ -1052,30 +1302,46 @@ public final class HospitalApp extends Application {
         }
     }
 
-    private VBox card(String title, String subtitle) {
-        VBox box = new VBox(14);
-        box.getStyleClass().add("surface-card");
+    private SurfaceCard createSurfaceCard(String title, String subtitle) {
+        Region backdrop = new Region();
+        backdrop.getStyleClass().add("surface-card-backdrop");
+        backdrop.setMouseTransparent(true);
+        backdrop.setCache(true);
+        backdrop.setCacheHint(CacheHint.SPEED);
+
+        VBox body = new VBox(14);
+        body.getStyleClass().add("surface-card-body");
         Label heading = new Label(title);
         heading.getStyleClass().add("section-heading");
         Label subheading = new Label(subtitle);
         subheading.getStyleClass().add("section-subtitle");
         VBox titleBox = new VBox(4, heading, subheading);
-        box.getChildren().add(titleBox);
-        return box;
+        body.getChildren().add(titleBox);
+
+        StackPane cardRoot = new StackPane(backdrop, body);
+        cardRoot.getStyleClass().add("surface-card");
+        return new SurfaceCard(cardRoot, body);
     }
 
-    private VBox roomCard(int roomNumber) {
-        VBox tile = new VBox(10);
-        tile.getStyleClass().addAll("room-tile", "room-available");
-        Label title = new Label(t("room.title") + " " + roomNumber);
-        title.getStyleClass().add("room-title");
-        Label state = new Label(t("room.available"));
-        state.getStyleClass().add("room-state");
-        Label patient = new Label(t("room.ready"));
-        patient.getStyleClass().add("room-assignment");
-        tile.getChildren().addAll(title, state, patient);
-        HBox.setHgrow(tile, Priority.ALWAYS);
-        return tile;
+    private record SurfaceCard(StackPane root, VBox body) {
+    }
+
+    private static final class SeatSlot {
+        private final Label label;
+        private final FadeTransition transition;
+        private String displayedText;
+        private boolean occupied;
+
+        private SeatSlot(String availableText) {
+            label = new Label(availableText);
+            label.getStyleClass().add("seat-empty");
+            label.setMinSize(86, 54);
+            label.setAlignment(Pos.CENTER);
+            transition = new FadeTransition(Duration.millis(180), label);
+            transition.setFromValue(0.55);
+            transition.setToValue(1.0);
+            displayedText = availableText;
+        }
     }
 
     private Region divider() {
@@ -1157,6 +1423,10 @@ public final class HospitalApp extends Application {
                 SimulationSnapshot.DoctorStatus.IDLE));
         private final Label patient = new Label(t("doctor.no.patient"));
         private final ProgressBar progress = new ProgressBar(0);
+        private DoctorStatus lastStatus;
+        private String lastStatusClass;
+        private String lastPatientId;
+        private boolean initialized;
 
         private DoctorCard(int id) {
             container.getStyleClass().add("doctor-card");
@@ -1170,48 +1440,135 @@ public final class HospitalApp extends Application {
             header.getChildren().addAll(name, spacer, status);
             patient.getStyleClass().add("doctor-patient");
             progress.getStyleClass().add("treatment-progress");
+            progress.setVisible(false);
+            progress.setManaged(false);
             container.getChildren().addAll(header, patient, progress);
         }
 
         private void update(SimulationSnapshot.Doctor doctor) {
-            status.setText(DashboardText.doctorStatus(doctor.status()));
-            status.getStyleClass().removeAll("doctor-idle", "doctor-waiting-for-room",
-                    "doctor-treating", "doctor-available", "doctor-stopped");
-            status.getStyleClass().add("doctor-"
-                    + doctor.status().name().toLowerCase().replace('_', '-'));
-            patient.setText(doctor.patientId() == null
-                    ? t("doctor.no.patient")
-                    : t("doctor.current.patient") + "  ·  " + doctor.patientId());
-            boolean treating = doctor.status() == DoctorStatus.TREATING;
-            progress.setVisible(treating);
-            progress.setManaged(treating);
-            if (!treating) {
-                progress.setProgress(0);
+            DoctorStatus currentStatus = doctor.status();
+            if (!initialized || currentStatus != lastStatus) {
+                status.setText(DashboardText.doctorStatus(currentStatus));
+                if (lastStatusClass != null) {
+                    status.getStyleClass().remove(lastStatusClass);
+                }
+                lastStatusClass = "doctor-"
+                        + currentStatus.name().toLowerCase().replace('_', '-');
+                status.getStyleClass().add(lastStatusClass);
+                boolean treating = currentStatus == DoctorStatus.TREATING;
+                progress.setVisible(treating);
+                progress.setManaged(treating);
+                if (!treating) {
+                    progress.setProgress(0);
+                }
+                lastStatus = currentStatus;
+            }
+            String currentPatientId = doctor.patientId();
+            if (!initialized || !Objects.equals(currentPatientId, lastPatientId)) {
+                patient.setText(currentPatientId == null
+                        ? t("doctor.no.patient")
+                        : t("doctor.current.patient") + "  ·  " + currentPatientId);
+                lastPatientId = currentPatientId;
+            }
+            initialized = true;
+        }
+    }
+
+    private final class RoomCard {
+        private final VBox container = new VBox(10);
+        private final Label state = new Label(t("room.available"));
+        private final Label assignment = new Label(t("room.ready"));
+        private final ProgressBar progress = new ProgressBar(0);
+        private RoomStatus lastStatus = RoomStatus.AVAILABLE;
+        private int lastDoctorId;
+        private String lastPatientId;
+
+        private RoomCard(int roomNumber) {
+            container.getStyleClass().addAll("room-tile", "room-available");
+            Label title = new Label(t("room.title") + " " + roomNumber);
+            title.getStyleClass().add("room-title");
+            state.getStyleClass().add("room-state");
+            assignment.getStyleClass().add("room-assignment");
+            progress.getStyleClass().addAll("treatment-progress", "room-progress");
+            progress.setVisible(false);
+            progress.setManaged(false);
+            container.getChildren().addAll(title, state, assignment, progress);
+            HBox.setHgrow(container, Priority.ALWAYS);
+        }
+
+        private void update(SimulationSnapshot.TreatmentRoom room) {
+            RoomStatus currentStatus = room.status();
+            if (currentStatus != lastStatus) {
+                boolean occupied = currentStatus == RoomStatus.OCCUPIED;
+                container.getStyleClass().remove(occupied ? "room-available" : "room-occupied");
+                container.getStyleClass().add(occupied ? "room-occupied" : "room-available");
+                state.setText(t(occupied ? "room.occupied" : "room.available"));
+                progress.setVisible(occupied);
+                progress.setManaged(occupied);
+                if (!occupied) {
+                    progress.setProgress(0);
+                }
+                lastStatus = currentStatus;
+            }
+            if (currentStatus == RoomStatus.OCCUPIED) {
+                if (room.doctorId() != lastDoctorId
+                        || !Objects.equals(room.patientId(), lastPatientId)) {
+                    assignment.setText(t("doctor.prefix") + " " + room.doctorId()
+                            + "  ·  " + room.patientId());
+                    lastDoctorId = room.doctorId();
+                    lastPatientId = room.patientId();
+                }
+            } else if (lastDoctorId != 0 || lastPatientId != null) {
+                assignment.setText(t("room.ready"));
+                lastDoctorId = 0;
+                lastPatientId = null;
             }
         }
     }
 
     private final class EventCell extends ListCell<SimulationEvent> {
+        private final Label time = new Label();
+        private final Label category = new Label();
+        private final Label message = new Label();
+        private final HBox row = new HBox(10, time, category, message);
+        private EventCategory lastCategory;
+        private String lastCategoryClass;
+
+        private EventCell() {
+            time.getStyleClass().add("event-time");
+            category.getStyleClass().add("event-category");
+            message.getStyleClass().add("event-message");
+            message.setWrapText(true);
+            HBox.setHgrow(message, Priority.ALWAYS);
+            row.getStyleClass().add("event-row");
+            row.setAlignment(Pos.TOP_LEFT);
+        }
+
         @Override
         protected void updateItem(SimulationEvent event, boolean empty) {
             super.updateItem(event, empty);
             if (empty || event == null) {
-                setGraphic(null);
+                if (getGraphic() != null) {
+                    setGraphic(null);
+                }
                 setText(null);
                 return;
             }
-            Label time = new Label(EVENT_TIME.format(event.timestamp()));
-            time.getStyleClass().add("event-time");
-            Label category = new Label(DashboardText.category(event.category()));
-            category.getStyleClass().addAll("event-category",
-                    "event-" + event.category().name().toLowerCase().replace('_', '-'));
-            Label message = new Label(DashboardText.eventMessage(event));
-            message.getStyleClass().add("event-message");
-            message.setWrapText(true);
-            HBox row = new HBox(10, time, category, message);
-            row.getStyleClass().add("event-row");
-            row.setAlignment(Pos.TOP_LEFT);
-            setGraphic(row);
+            time.setText(EVENT_TIME.format(event.timestamp()));
+            EventCategory eventCategory = event.category();
+            if (eventCategory != lastCategory) {
+                if (lastCategoryClass != null) {
+                    category.getStyleClass().remove(lastCategoryClass);
+                }
+                lastCategoryClass = "event-" + eventCategory.name().toLowerCase().replace('_', '-');
+                category.getStyleClass().add(lastCategoryClass);
+                category.setText(DashboardText.category(eventCategory));
+                lastCategory = eventCategory;
+            }
+            message.setText(DashboardText.eventMessage(event));
+            if (getGraphic() != row) {
+                setGraphic(row);
+            }
         }
     }
 

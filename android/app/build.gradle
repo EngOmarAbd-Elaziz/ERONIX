@@ -16,8 +16,8 @@ android {
         applicationId "hospital.eronix"
         minSdk 34
         targetSdk 34
-        versionCode = (System.getenv("ERONIX_VERSION_CODE") ?: "4").toInteger()
-        versionName = (System.getenv("ERONIX_VERSION_NAME") ?: "1.0.4")
+        versionCode = (System.getenv("ERONIX_VERSION_CODE") ?: "5").toInteger()
+        versionName = (System.getenv("ERONIX_VERSION_NAME") ?: "1.0.5")
     }
 
     signingConfigs {

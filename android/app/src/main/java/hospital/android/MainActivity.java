@@ -766,6 +766,7 @@ public final class MainActivity extends Activity {
             resetButton.setEnabled(false);
             completionLabel.setVisibility(View.GONE);
             controller.start();
+            selectPage(0);
         } catch (IllegalArgumentException exception) {
             Toast.makeText(this, exception.getMessage(), Toast.LENGTH_LONG).show();
         }
