@@ -5,6 +5,7 @@ Push-Location $root
 try {
     $inputDirectory = Join-Path $root "target/package-input"
     $outputDirectory = Join-Path $root "dist/windows/installers"
+    $buildOutputDirectory = Join-Path $root "target/windows-installers"
     $appVersion = if ($env:ERONIX_VERSION) { $env:ERONIX_VERSION } else { "1.0.6" }
     if ($appVersion -notmatch '^\d+(\.\d+)*$') {
         throw "ERONIX_VERSION must be a numeric dotted version."
@@ -24,8 +25,6 @@ try {
     if (-not (Get-Command jpackage -ErrorAction SilentlyContinue)) {
         throw "JDK 25 or newer with jpackage is required."
     }
-    New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
-
     & mvn --no-transfer-progress clean package org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies `
         "-Drevision=$appVersion" `
         -DincludeScope=runtime `
@@ -35,6 +34,8 @@ try {
     }
 
     Copy-Item (Join-Path $root "target/$appJar") (Join-Path $inputDirectory $appJar)
+    New-Item -ItemType Directory -Force -Path $outputDirectory, $buildOutputDirectory | Out-Null
+    Get-ChildItem -Path $buildOutputDirectory -File | Remove-Item -Force
     if (Test-Path (Join-Path $javaHome "jmods")) {
         $jpackageArguments = @(
             "--type", "msi",
@@ -50,7 +51,7 @@ try {
             "--java-options", "--enable-native-access=javafx.graphics",
             "--java-options", "-Deronix.version=$appVersion",
             "--icon", (Join-Path $root "ERONIX.ico"),
-            "--dest", $outputDirectory
+            "--dest", $buildOutputDirectory
         )
     }
     else {
@@ -69,7 +70,7 @@ try {
             "--java-options", "--enable-native-access=ALL-UNNAMED",
             "--java-options", "-Deronix.version=$appVersion",
             "--icon", (Join-Path $root "ERONIX.ico"),
-            "--dest", $outputDirectory
+            "--dest", $buildOutputDirectory
         )
     }
     & jpackage @jpackageArguments
@@ -77,6 +78,12 @@ try {
         throw "jpackage failed with exit code $LASTEXITCODE."
     }
 
+    $builtInstaller = Join-Path $buildOutputDirectory "ERONIX-$appVersion.msi"
+    if (-not (Test-Path $builtInstaller -PathType Leaf)) {
+        throw "jpackage did not create the expected ERONIX-$appVersion.msi installer."
+    }
+    Get-ChildItem -Path $outputDirectory -Filter "ERONIX-*.msi" -File | Remove-Item -Force
+    Copy-Item $builtInstaller $outputDirectory
     Write-Host "Windows MSI installer created in $outputDirectory for version $appVersion"
 }
 finally {
